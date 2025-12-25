@@ -1,6 +1,6 @@
 # LLMs_Tests
  
-[**RAG Fast API : Qdrant Local + Ollama (Embeddings + Chat):**](https://github.com/M-kadi/LLMs_Tests/RAG/RAG_API)
+[**RAG Fast API : Qdrant Local + Ollama (Embeddings + Chat):**](https://github.com/M-kadi/LLMs_Tests/tree/main/RAG/RAG_API)
 ##### To Run:
 - Start Docker Desktop
 - Start Ollama application
@@ -31,17 +31,18 @@ Open browser to (Swagger): http://localhost:8000/docs
 - Support CSV + TXT files in the same folder for ingestion
 - Use Qdrant for vector storage and retrieval
   
-##### Test endpoints
-GET http://localhost:8000/settings
-POST http://localhost:8000/settings
-POST http://localhost:8000/settings/reset
-POST http://localhost:8000/index/build
-POST http://localhost:8000/query
+##### Endpoints
+- GET http://localhost:8000/docs
+- GET http://localhost:8000/settings
+- POST http://localhost:8000/settings
+- POST http://localhost:8000/settings/reset
+- POST http://localhost:8000/index/build
+- POST http://localhost:8000/query
+
+--------
 
 
-
-
-[**RAG GUI (CSV/TXT) : Qdrant Local + Ollama (Embeddings + Chat):**](https://github.com/M-kadi/LLMs_Tests/RAG/RAG_GUI)  
+[**RAG GUI (CSV/TXT) : Qdrant Local + Ollama (Embeddings + Chat):**](https://github.com/M-kadi/LLMs_Tests/tree/main/RAG/RAG_GUI)  
 
 ##### To Run:
 - Start Docker Desktop

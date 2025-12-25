@@ -1,0 +1,10 @@
+{
+  "qdrant_url": "http://localhost:6333",
+  "collection_prefix": "csv_rag",
+  "topk_retrieve": 10,
+  "topk_use": 3,
+  "enable_rerank": false,
+  "text_group_lines": 1,
+  "embedding_model": "all-minilm:latest",
+  "main_model": "qwen3:1.7b"
+}

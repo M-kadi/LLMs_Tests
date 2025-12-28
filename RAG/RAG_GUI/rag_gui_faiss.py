@@ -264,7 +264,7 @@ class RAGApp:
         # with open(self.chunks_txt, "w") as f:
             # f.write("\n\n".join(chunks))
 
-        self.log("FAISS index created.")
+        self.log("FAISS index created at: " + self.csv_index_faiss)
         self.set_title(FormTitle)
 
     def run_query_threaded(self):

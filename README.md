@@ -30,6 +30,7 @@ Open browser to (Swagger): http://localhost:8000/docs
 - Use Text Group Lines : for TXT files, group N lines per chunk instead of single line chunks (Paragraphs)
 - Support CSV + TXT files in the same folder for ingestion
 - Use Qdrant for vector storage and retrieval
+- Enable Change Prompt and Prompt templates for Reranking and Answering from settings
   
 ##### Endpoints
 - GET http://localhost:8000/docs
@@ -72,3 +73,14 @@ http://localhost:6333/dashboard#/collections
 - Use Text Group Lines : for TXT files, group N lines per chunk instead of single line chunks (Paragraphs)
 - Support CSV + TXT files in the same folder for ingestion
 - Use Qdrant for vector storage and retrieval
+- Enable Change Prompt and Prompt templates for Reranking and Answering from settings
+
+![Main Window](RAG/RAG_GUI/Main.PNG)
+
+![Results Window](RAG/RAG_GUI/Results.PNG)
+
+![Logs Window](RAG/RAG_GUI/Logs.PNG)
+
+![Settings Window](RAG/RAG_GUI/Settings.PNG)
+
+![Qdrant Collections](RAG/RAG_GUI/QdrantCollections.PNG)

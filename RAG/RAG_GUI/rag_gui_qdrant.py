@@ -2,6 +2,7 @@ import os
 import re
 import json
 import sys
+from tkinter import filedialog
 import uuid
 import time
 import queue
@@ -45,11 +46,19 @@ from models_config import CHAT_MODELS, DEFAULT_MODEL, EmbeddingModel, EmbeddingM
 # Use Text Group Lines : for TXT files, group N lines per chunk instead of single line chunks (Paragraphs)
 # Support CSV + TXT files in the same folder for ingestion
 # Use Qdrant for vector storage and retrieval
+# Enable change Prompt and Prompt templates for Reranking and Answering from settings GUI
 # ------------------ App Defaults ------------------
 
 APP_TITLE = "RAG GUI (CSV/TXT) : Qdrant Local + Ollama (Embeddings + Chat)"
 
+# ------------------ Settings Persistence ------------------
+SETTINGS_FILE_NAME = "rag_settings.json"
+RAG_DATA_0_FOLDER_NAME = "rag_data"
+RAG_DATA_1_FOLDER_NAME = "my_csvs"
+RAG_DATA_2_FOLDER_NAME = "docs"
+# rag_data\my_csvs\docs
 
+# ------------------ Default Config ------------------
 DEFAULT_QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 DEFAULT_QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 DEFAULT_COLLECTION_PREFIX = os.getenv("QDRANT_COLLECTION_PREFIX", "csv_rag")
@@ -59,13 +68,49 @@ DEFAULT_TOPK_USE = 3        # final contexts used in answer
 DEFAULT_ENABLE_RERANK = False  # disable reranking by default
 DEFAULT_TEXT_GROUP_LINES = 1  # lines per chunk for TXT files
 
-# ------------------ Settings Persistence ------------------
+DEFAULT_DOCS_DIR = str(Path(RAG_DATA_0_FOLDER_NAME) / RAG_DATA_1_FOLDER_NAME / RAG_DATA_2_FOLDER_NAME)
 
-SETTINGS_FILE_NAME = "rag_settings.json"
-RAG_DATA_0_FOLDER_NAME = "rag_data"
-RAG_DATA_1_FOLDER_NAME = "my_csvs"
-RAG_DATA_2_FOLDER_NAME = "docs"
-# rag_data\my_csvs\docs
+DEFAULT_RERANK_PROMPT_TEMPLATE = (
+    "You are a retrieval re-ranker.\n"
+    "Given a user question and a list of candidate contexts, select the most relevant items.\n"
+    "Rules:\n"
+    "- Choose exactly {choose_k} distinct indices.\n"
+    "- Prefer contexts that directly contain facts needed to answer.\n"
+    "- Avoid redundant/duplicate contexts.\n"
+    "- Output ONLY valid JSON, no extra text.\n\n"
+    "Return JSON format:\n"
+    "{{\n"
+    '  "selected_indices": [0, 2, 5],\n'
+    '  "reasons": ["short reason 1", "short reason 2", "short reason 3"]\n'
+    "}}\n\n"
+    "Question:\n{query}\n\n"
+    "Candidates:\n{candidates}\n"
+)
+
+DEFAULT_ANSWER_PROMPT_TEMPLATE = (
+    "You are an assistant that answers strictly from retrieved context.\n"
+    "IMPORTANT RULES:\n"
+    "- Use ONLY the information in the Context.\n"
+    "- If the Context does not contain the answer, reply exactly: \"I don't know based on the provided context.\"\n"
+    "- Keep the answer clear and concise.\n\n"
+    "Context:\n{context}\n\n"
+    "Question: {query}\n\n"
+    "Answer:"
+)
+
+'''
+You are a hybrid RAG assistant.
+
+Decision rules:
+1) If the Context contains information that directly answers the Question, answer using ONLY the Context.
+2) If the Question is a general knowledge question and the Context is irrelevant or unrelated, ignore the Context and answer normally.
+
+Context:\n{context}
+
+Question: {query}
+
+Answer:"
+'''
 
 def _safe_int(x, default: int) -> int:
     try:
@@ -117,6 +162,13 @@ class RAGEngineQdrant:
 
         self.collection_name: Optional[str] = None
         self.vector_dim: Optional[int] = None
+
+        self.rerank_prompt_template = DEFAULT_RERANK_PROMPT_TEMPLATE
+        self.answer_prompt_template = DEFAULT_ANSWER_PROMPT_TEMPLATE
+
+    def set_prompts(self, rerank_template: str, answer_template: str):
+        self.rerank_prompt_template = (rerank_template or "").strip() or DEFAULT_RERANK_PROMPT_TEMPLATE
+        self.answer_prompt_template = (answer_template or "").strip() or DEFAULT_ANSWER_PROMPT_TEMPLATE
 
     @staticmethod
     def _slug(s: str) -> str:
@@ -527,23 +579,28 @@ class RAGEngineQdrant:
         candidates = "\n".join(candidates_lines)
 
         # English rerank prompt (your request)
-        rerank_prompt = (
-            "You are a retrieval re-ranker.\n"
-            "Given a user question and a list of candidate contexts, select the most relevant items.\n"
-            "Rules:\n"
-            f"- Choose exactly {choose_k} distinct indices.\n"
-            "- Prefer contexts that directly contain facts needed to answer.\n"
-            "- Avoid redundant/duplicate contexts.\n"
-            "- Output ONLY valid JSON, no extra text.\n\n"
-            "Return JSON format:\n"
-            "{\n"
-            '  "selected_indices": [0, 2, 5],\n'
-            '  "reasons": ["short reason 1", "short reason 2", "short reason 3"]\n'
-            "}\n\n"
-            f"Question:\n{query}\n\n"
-            f"Candidates:\n{candidates}\n"
-        )
+        # rerank_prompt = (
+        #     "You are a retrieval re-ranker.\n"
+        #     "Given a user question and a list of candidate contexts, select the most relevant items.\n"
+        #     "Rules:\n"
+        #     f"- Choose exactly {choose_k} distinct indices.\n"
+        #     "- Prefer contexts that directly contain facts needed to answer.\n"
+        #     "- Avoid redundant/duplicate contexts.\n"
+        #     "- Output ONLY valid JSON, no extra text.\n\n"
+        #     "Return JSON format:\n"
+        #     "{\n"
+        #     '  "selected_indices": [0, 2, 5],\n'
+        #     '  "reasons": ["short reason 1", "short reason 2", "short reason 3"]\n'
+        #     "}\n\n"
+        #     f"Question:\n{query}\n\n"
+        #     f"Candidates:\n{candidates}\n"
+        # )
 
+        rerank_prompt = self.rerank_prompt_template.format(
+            choose_k=choose_k,
+            query=query,
+            candidates=candidates,
+        )
         try:
             resp = ollama.chat(
                 model=self.main_model,
@@ -624,17 +681,27 @@ class RAGEngineQdrant:
         context = self.build_context(hits, selected)
 
         # English answering prompt (your request)
-        prompt = (
-            "You are an assistant that answers strictly from retrieved context.\n"
-            "IMPORTANT RULES:\n"
-            "- Use ONLY the information in the Context.\n"
-            "- If the Context does not contain the answer, reply exactly: \"I don't know based on the provided context.\"\n"
-            "- Keep the answer clear and concise.\n\n"
-            f"Context:\n{context}\n\n"
-            f"Question: {query}\n\n"
-            "Answer:"
+        # prompt = (
+        #     "You are an assistant that answers strictly from retrieved context.\n"
+        #     "IMPORTANT RULES:\n"
+        #     "- Use ONLY the information in the Context.\n"
+        #     "- If the Context does not contain the answer, reply exactly: \"I don't know based on the provided context.\"\n"
+        #     "- Keep the answer clear and concise.\n\n"
+        #     f"Context:\n{context}\n\n"
+        #     f"Question: {query}\n\n"
+        #     "Answer:"
+        # )
+        prompt = self.answer_prompt_template.format(
+            context=context,
+            query=query,
         )
 
+        # prompt = f"Context:\n{context}\n\nQuestion: {query}\nAnswer:"
+        # prompt = (
+        #     f"Context:\n{context}\n\n"
+        #     f"Question: {query}\n\n"
+        #     f"Answer clearly and concisely based only on the context above."
+        # )
         # prompt = f"""
         # You are a RAG router + answerer.
 
@@ -748,15 +815,27 @@ class RAGAppGUI:
         self.root.geometry("1100x760")
 
         # Paths
+        self.settings_path = Path(__file__).resolve().parent / SETTINGS_FILE_NAME
         self.script_dir = Path(__file__).resolve().parent.parent
-        self.settings_path = self.script_dir / SETTINGS_FILE_NAME
         self.base_dir = self.script_dir / RAG_DATA_0_FOLDER_NAME
         self.csv_dir = self.base_dir / RAG_DATA_1_FOLDER_NAME / RAG_DATA_2_FOLDER_NAME
         self.csv_dir.mkdir(parents=True, exist_ok=True)
         print(f"Data folder: {self.csv_dir}")
+
         # --------- LOAD SETTINGS (or defaults) BEFORE creating tk variables ----------
         loaded = self._load_settings_file()
 
+        # docs folder path from settings
+        self.docs_dir_var = tk.StringVar(value=loaded.get("docs_dir", DEFAULT_DOCS_DIR))
+
+        self.csv_dir = self._resolve_docs_dir(self.docs_dir_var.get())
+        self.csv_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Data folder: {self.csv_dir}")
+
+        # prompt templates from settings
+        self.rerank_prompt_var = tk.StringVar(value=loaded.get("rerank_prompt_template", DEFAULT_RERANK_PROMPT_TEMPLATE))
+        self.answer_prompt_var = tk.StringVar(value=loaded.get("answer_prompt_template", DEFAULT_ANSWER_PROMPT_TEMPLATE))
+        
         # # Models state
         # self.embedding_model = EmbeddingModel
         # self.main_model = DEFAULT_MODEL
@@ -809,7 +888,88 @@ class RAGAppGUI:
             collection_prefix=self.collection_prefix.get(),
         )
         eng.set_models(self.embedding_model, self.main_model)
+        eng.set_prompts(self.rerank_prompt_var.get(), self.answer_prompt_var.get())
         return eng
+
+    def _open_docs_dir(self):
+        path = self._resolve_docs_dir(self.docs_dir_var.get())
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+        if not path.exists():
+            messagebox.showwarning("Warning", f"Folder does not exist:\n{path}")
+            return
+
+        try:
+            # Windows
+            if os.name == "nt":
+                os.startfile(str(path))  # type: ignore[attr-defined]
+                return
+
+            # macOS
+            if sys.platform == "darwin":
+                subprocess.run(["open", str(path)], check=False)
+                return
+
+            # Linux
+            subprocess.run(["xdg-open", str(path)], check=False)
+
+        except Exception as e:
+            messagebox.showwarning("Warning", f"Failed to open folder:\n{path}\n\n{e}")
+
+    def _browse_docs_dir(self):
+        # start from current value if possible
+        initial = str(self._resolve_docs_dir(self.docs_dir_var.get()))
+        if not Path(initial).exists():
+            initial = str(self.script_dir)
+
+        selected = filedialog.askdirectory(
+            title="Select Docs Folder (CSV/TXT for indexing)",
+            initialdir=initial,
+            mustexist=True,
+        )
+        if not selected:
+            return
+
+        # Prefer saving relative paths (cleaner + portable)
+        try:
+            rel = Path(selected).resolve().relative_to(self.script_dir.resolve())
+            self.docs_dir_var.set(str(rel))
+        except Exception:
+            # fallback: store absolute
+            self.docs_dir_var.set(str(Path(selected).resolve()))
+
+        # Update live folder target
+        self.csv_dir = self._resolve_docs_dir(self.docs_dir_var.get())
+        self.csv_dir.mkdir(parents=True, exist_ok=True)
+
+        self._append_log(f"[Settings] Docs folder set to: {self.csv_dir}")
+
+    # def _resolve_docs_dir(self, p: str) -> Path:
+    #     p = (p or "").strip()
+    #     if not p:
+    #         p = DEFAULT_DOCS_DIR
+    #     path = Path(p)
+    #     if not path.is_absolute():
+    #         path = self.script_dir / path
+    #     return path
+
+    def _resolve_docs_dir(self, p: str) -> Path:
+        p = (p or "").strip()
+
+        if not p:
+            return Path(DEFAULT_DOCS_DIR)
+
+        path = Path(p)
+
+        # If user provided absolute path → use it as-is
+        if path.is_absolute(): # D:\LLM\LLMs_Tests\RAG\rag_data\my_csvs\docs
+            return path
+
+        # Otherwise treat it as relative to project root #rag_data\my_csvs\docs
+        return (self.script_dir / path).resolve()
 
     # ---------- UI Layout ----------
     def _build_ui(self):
@@ -923,7 +1083,45 @@ class RAGAppGUI:
 
         tk.Label(frm, text="Text Group Lines (For Indexing Txt Files):").grid(row=row, column=0, sticky="w", padx=6, pady=6)
         tk.Spinbox(frm, from_=1, to=20, textvariable=self.text_group_lines, width=10).grid(row=row, column=1, sticky="w", padx=6, pady=6)
-        row += 1        
+        row += 1
+
+        # # Docs folder
+        # tk.Label(frm, text="Docs Folder (for indexing):").grid(row=row, column=0, sticky="w", padx=6, pady=6)
+        # tk.Entry(frm, textvariable=self.docs_dir_var).grid(row=row, column=1, sticky="ew", padx=6, pady=6)
+        # row += 1
+
+        # # Docs folder (Entry + Browse button)
+        # tk.Label(frm, text="Docs Folder (for indexing):").grid(row=row, column=0, sticky="w", padx=6, pady=6)
+        # docs_row = tk.Frame(frm)
+        # docs_row.grid(row=row, column=1, sticky="ew", padx=6, pady=6)
+        # docs_row.columnconfigure(0, weight=1)
+        # tk.Entry(docs_row, textvariable=self.docs_dir_var).grid(row=0, column=0, sticky="ew")
+        # tk.Button(docs_row, text="Browse...", command=self._browse_docs_dir).grid(row=0, column=1, padx=(8, 0))
+        # row += 1   
+
+        # Docs folder (Entry + Browse + Open)
+        tk.Label(frm, text="Docs Folder (for indexing):").grid(row=row, column=0, sticky="w", padx=6, pady=6)
+        docs_row = tk.Frame(frm)
+        docs_row.grid(row=row, column=1, sticky="ew", padx=6, pady=6)
+        docs_row.columnconfigure(0, weight=1)
+        tk.Entry(docs_row, textvariable=self.docs_dir_var).grid(row=0, column=0, sticky="ew")
+        tk.Button(docs_row, text="Browse...", command=self._browse_docs_dir).grid(row=0, column=1, padx=(8, 0))
+        tk.Button(docs_row, text="Open Folder", command=self._open_docs_dir).grid(row=0, column=2, padx=(8, 0))
+        row += 1
+
+        # Rerank prompt template
+        tk.Label(frm, text="Rerank Prompt Template:").grid(row=row, column=0, sticky="nw", padx=6, pady=6)
+        self.rerank_prompt_text = scrolledtext.ScrolledText(frm, height=8, font=("Consolas", 10))
+        self.rerank_prompt_text.grid(row=row, column=1, sticky="ew", padx=6, pady=6)
+        self.rerank_prompt_text.insert("1.0", self.rerank_prompt_var.get())
+        row += 1
+
+        # Answer prompt template
+        tk.Label(frm, text="Answer Prompt Template:").grid(row=row, column=0, sticky="nw", padx=6, pady=6)
+        self.answer_prompt_text = scrolledtext.ScrolledText(frm, height=8, font=("Consolas", 10))
+        self.answer_prompt_text.grid(row=row, column=1, sticky="ew", padx=6, pady=6)
+        self.answer_prompt_text.insert("1.0", self.answer_prompt_var.get())
+        row += 1
 
         tk.Button(frm, text="Apply Settings", command=self._apply_settings)\
             .grid(row=row, column=1, sticky="w", padx=6, pady=(10, 6))
@@ -979,7 +1177,9 @@ class RAGAppGUI:
             "topk_use": DEFAULT_TOPK_USE,
             "enable_rerank": DEFAULT_ENABLE_RERANK,
             "text_group_lines": DEFAULT_TEXT_GROUP_LINES,
-            # Optional but recommended:
+            "docs_dir": DEFAULT_DOCS_DIR,
+            "rerank_prompt_template": DEFAULT_RERANK_PROMPT_TEMPLATE,
+            "answer_prompt_template": DEFAULT_ANSWER_PROMPT_TEMPLATE,            
             "embedding_model": EmbeddingModel,
             "main_model": DEFAULT_MODEL,
         }
@@ -1020,7 +1220,9 @@ class RAGAppGUI:
             "topk_use": int(self.topk_use.get()),
             "enable_rerank": bool(self.enable_rerank.get()),
             "text_group_lines": int(self.text_group_lines.get()),
-            # Optional but recommended:
+            "docs_dir": self.docs_dir_var.get(),
+            "rerank_prompt_template": self.rerank_prompt_var.get(),
+            "answer_prompt_template": self.answer_prompt_var.get(),
             "embedding_model": self.embedding_model,
             "main_model": self.main_model,
         }
@@ -1028,9 +1230,20 @@ class RAGAppGUI:
 
     # ---------- Settings apply ----------
     def _apply_settings(self):
-        # recreate engine with new qdrant url/prefix; keep models
+        # Pull latest templates from text widgets
+        if hasattr(self, "rerank_prompt_text"):
+            self.rerank_prompt_var.set(self.rerank_prompt_text.get("1.0", tk.END).rstrip())
+        if hasattr(self, "answer_prompt_text"):
+            self.answer_prompt_var.set(self.answer_prompt_text.get("1.0", tk.END).rstrip())
+
+        # Update docs folder path
+        self.csv_dir = self._resolve_docs_dir(self.docs_dir_var.get())
+        self.csv_dir.mkdir(parents=True, exist_ok=True)
+        self._append_log(f"[Docs] Using folder: {self.csv_dir}")
+
+        # Recreate engine with new settings and prompts
         self.engine = self._make_engine()
-        self._append_log(f"[Settings] Applied. Qdrant={self.qdrant_url.get()}, prefix={self.collection_prefix.get()}")
+        self._append_log(f"[Settings] Applied. Qdrant={self.qdrant_url.get()}, prefix={self.collection_prefix.get()}, docs_dir={self.csv_dir}")
 
         # SAVE to rag_settings.json
         try:
@@ -1038,6 +1251,18 @@ class RAGAppGUI:
             self._append_log(f"[Settings] Saved to: {self.settings_path}")
         except Exception as e:
             self._append_log(f"[ERROR] Failed saving settings: {e}")        
+
+    # def _apply_settings(self):
+    #     # recreate engine with new qdrant url/prefix; keep models
+    #     self.engine = self._make_engine()
+    #     self._append_log(f"[Settings] Applied. Qdrant={self.qdrant_url.get()}, prefix={self.collection_prefix.get()}")
+
+    #     # SAVE to rag_settings.json
+    #     try:
+    #         self._save_settings_file()
+    #         self._append_log(f"[Settings] Saved to: {self.settings_path}")
+    #     except Exception as e:
+    #         self._append_log(f"[ERROR] Failed saving settings: {e}")        
 
     # ---------- Settings reset ----------
     def _reset_to_defaults(self):
@@ -1061,6 +1286,22 @@ class RAGAppGUI:
                 self.embedding_combo.set(self.embedding_model)
             if hasattr(self, "main_combo"):
                 self.main_combo.set(self.main_model)
+
+            # Reset prompt templates and docs dir
+            self.docs_dir_var.set(defaults["docs_dir"])
+            self.rerank_prompt_var.set(defaults["rerank_prompt_template"])
+            self.answer_prompt_var.set(defaults["answer_prompt_template"])
+
+            # Reflect in text widgets if built
+            if hasattr(self, "rerank_prompt_text"):
+                self.rerank_prompt_text.delete("1.0", tk.END)
+                self.rerank_prompt_text.insert("1.0", self.rerank_prompt_var.get())
+            if hasattr(self, "answer_prompt_text"):
+                self.answer_prompt_text.delete("1.0", tk.END)
+                self.answer_prompt_text.insert("1.0", self.answer_prompt_var.get())
+
+            self.csv_dir = self._resolve_docs_dir(self.docs_dir_var.get())
+            self.csv_dir.mkdir(parents=True, exist_ok=True)
 
             # Apply (recreate engine) + set models
             self.engine = self._make_engine()

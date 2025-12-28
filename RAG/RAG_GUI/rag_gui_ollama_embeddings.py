@@ -365,7 +365,7 @@ class RAGApp:
         self.embeddings = embeddings
         self.chunks = chunks
 
-        self.log("Index built and saved (NumPy).")
+        self.log("Index built and saved (NumPy) at: " + self.csv_index_npy)
         self.set_title(FormTitle)
 
     # ---------- Step 3: run query ----------
@@ -439,11 +439,47 @@ class RAGApp:
         # )
 
         # 3) Formulate prompt and query main model
+        # prompt = (
+        #     f"Context:\n{context}\n\n"
+        #     f"Question: {query}\n\n"
+        #     f"Answer clearly and concisely based only on the context above."
+        # )
+
+        # prompt = (
+        #     "Answer ONLY using the Context.\n"
+        #     "If the Context does not contain the answer, reply exactly:\n"
+        #     "I don't know based on the provided context.\n\n"
+        #     f"Context:\n{context}\n\n"
+        #     f"Question: {query}\n\n"
+        #     "Answer:"
+        # )
+
+        # here is ageneral question (6+9)
+        # or the RAG depend on the context (RAG with CSV data)
+        # prompt = (
+        #     "You are a hybrid RAG assistant.\n\n"
+        #     "Decision rules:\n"
+        #     "1) If the Context contains information that directly answers the Question, answer using ONLY the Context.\n"
+        #     "2) If the Question is a general knowledge question and the Context is irrelevant or unrelated, ignore the Context and answer normally.\n"
+        #     "3) If the Context is related but does NOT contain the answer, reply exactly:\n"
+        #     "I don't know based on the provided context.\n\n"
+        #     "IMPORTANT:\n"
+        #     "- Do NOT mix Context knowledge with general knowledge.\n"
+        #     "- Use Context ONLY in case (1).\n\n"
+        #     f"Context:\n{context}\n\n"
+        #     f"Question: {query}\n\n"
+        #     "Answer:"
+        # )
+
         prompt = (
+            "You are a hybrid RAG assistant.\n\n"
+            "Decision rules:\n"
+            "1) If the Context contains information that directly answers the Question, answer using ONLY the Context.\n"
+            "2) If the Question is a general knowledge question and the Context is irrelevant or unrelated, ignore the Context and answer normally.\n"
             f"Context:\n{context}\n\n"
             f"Question: {query}\n\n"
-            f"Answer clearly and concisely based only on the context above."
-        )
+            "Answer:"
+        )        
 
         start = time.time()
         try:

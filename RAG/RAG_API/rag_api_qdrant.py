@@ -51,13 +51,93 @@ uvicorn rag_api_qdrant:app --host 0.0.0.0 --port 8000 --reload
 # ------------------ Config ------------------
 # Qdrant Dashboard URL :
 # http://localhost:6333/dashboard#/collections
-# Config File : contains : 
-#   Prompt / LLM name   
+# Config File rag_settings.json : 
+#    contains: LLM chat models + Embedding models, enable reranking, text group lines
 # Disable Reranking : by default enabled
+# save settings to file : rag_settings.json
+# load settings from file on startup
+# Enable reranking checkbox : true : will rerank by get the TOPK_RETRIEVE from Qdrant 
+#   then send to LLM to rerank to TOPK_USE as final contexts
+#   False : directly use TOPK_USE from Qdrant
+# Use Text Group Lines : for TXT files, group N lines per chunk instead of single line chunks (Paragraphs)
+# Support CSV + TXT files in the same folder for ingestion
+# Use Qdrant for vector storage and retrieval
+# Enable change Prompt and Prompt templates for Reranking and Answering from settings
 
 # ------------------ App Defaults ------------------
-
+# ------------------ Default Settings ------------------
 APP_TITLE = "RAG Fast API : Qdrant Local + Ollama (Embeddings + Chat)"
+# ------------------ Prompt Templates (Settings) ------------------
+# NOTE: These templates are stored in rag_settings.json and can be edited at runtime.
+# Keep placeholders:
+#  - {choose_k}, {query}, {candidates}, {context}
+
+DEFAULT_RERANK_PROMPT_TEMPLATE = (
+    "You are a retrieval re-ranker.\n"
+    "Given a user question and a list of candidate contexts, select the most relevant items.\n"
+    "Rules:\n"
+    "- Choose exactly {choose_k} distinct indices.\n"
+    "- Prefer contexts that directly contain facts needed to answer.\n"
+    "- Avoid redundant/duplicate contexts.\n"
+    "- Output ONLY valid JSON, no extra text.\n\n"
+    "Return JSON format:\n"
+    "{{\n"
+    '  "selected_indices": [0, 2, 5],\n'
+    '  "reasons": ["short reason 1", "short reason 2", "short reason 3"]\n'
+    "}}\n\n"
+    "Question:\n{query}\n\n"
+    "Candidates:\n{candidates}\n"
+)
+
+# DEFAULT_ANSWER_PROMPT_TEMPLATE = (
+#     "You are a hybrid RAG assistant.\n\n"
+#     "Decision rules:\n"
+#     "1) If the Context contains information that directly answers the Question, answer using ONLY the Context.\n"
+#     "2) If the Question is general knowledge and the Context is irrelevant/unrelated, ignore the Context and answer normally.\n"
+#     "3) If the Context is related but does NOT contain the answer, reply exactly:\n"
+#     "I don't know based on the provided context.\n\n"
+#     "IMPORTANT:\n"
+#     "- Do NOT mix Context knowledge with general knowledge.\n"
+#     "- Use Context ONLY in case (1).\n\n"
+#     "Context:\n{context}\n\n"
+#     "Question: {query}\n\n"
+#     "Answer:"
+# )
+
+# DEFAULT_ANSWER_PROMPT_TEMPLATE = (
+#     "You are a hybrid RAG assistant.\n\n"
+#     "Decision rules:\n"
+#     "1) If the Context contains information that directly answers the Question, answer using ONLY the Context.\n"
+#     "2) If the Question is general knowledge and the Context is irrelevant/unrelated, ignore the Context and answer normally.\n"
+#     "Context:\n{context}\n\n"
+#     "Question: {query}\n\n"
+#     "Answer:"
+# )
+
+'''
+You are a hybrid RAG assistant.
+
+Decision rules:
+1) If the Context contains information that directly answers the Question, answer using ONLY the Context.
+2) If the Question is a general knowledge question and the Context is irrelevant or unrelated, ignore the Context and answer normally.
+
+Context:\n{context}
+
+Question: {query}
+
+Answer:"
+'''
+
+DEFAULT_ANSWER_PROMPT_TEMPLATE = (
+    "You are an assistant that answers strictly from retrieved context.\n"
+    "IMPORTANT RULES:\n"
+    "- Use ONLY the information in the Context.\n"
+    "- If the Context does not contain the answer, reply exactly: \"I don't know based on the provided context.\"\n"
+    "- Keep the answer clear and concise.\n\n"
+    "Context:\n{context}\n\n"
+    "Question: {query}\n\n"
+    "Answer:"
+)
 
 DEFAULT_QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 DEFAULT_QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
@@ -132,6 +212,8 @@ def default_settings_dict() -> Dict[str, Any]:
         "txt_chunk_chars": 900,
         "txt_overlap": 120,
         "batch_size": 64,
+        "rerank_prompt_template": DEFAULT_RERANK_PROMPT_TEMPLATE,
+        "answer_prompt_template": DEFAULT_ANSWER_PROMPT_TEMPLATE,
     }
 
 def load_settings() -> Dict[str, Any]:
@@ -176,7 +258,9 @@ def reset_settings() -> Dict[str, Any]:
 # ------------------ RAG Engine (Qdrant + Ollama) ------------------
 
 class RAGEngineQdrant:
-    def __init__(self, qdrant_url: str, api_key: str, collection_prefix: str):
+    def __init__(self, qdrant_url: str, api_key: str, collection_prefix: str,
+            rerank_prompt_template: str = DEFAULT_RERANK_PROMPT_TEMPLATE,
+            answer_prompt_template: str = DEFAULT_ANSWER_PROMPT_TEMPLATE,):
         self.qdrant_url = qdrant_url
         self.api_key = api_key or None
         self.collection_prefix = collection_prefix
@@ -188,6 +272,8 @@ class RAGEngineQdrant:
 
         self.collection_name: Optional[str] = None
         self.vector_dim: Optional[int] = None
+        self.rerank_prompt_template = rerank_prompt_template
+        self.answer_prompt_template = answer_prompt_template        
 
     @staticmethod
     def _slug(s: str) -> str:
@@ -402,20 +488,26 @@ class RAGEngineQdrant:
             )
         candidates = "\n".join(candidates_lines)
 
-        rerank_prompt = (
-            "You are a retrieval re-ranker.\n"
-            "Given a user question and a list of candidate contexts, select the most relevant items.\n"
-            "Rules:\n"
-            f"- Choose exactly {choose_k} distinct indices.\n"
-            "- Prefer contexts that directly contain facts needed to answer.\n"
-            "- Avoid redundant/duplicate contexts.\n"
-            "- Output ONLY valid JSON, no extra text.\n\n"
-            "{\n"
-            '  "selected_indices": [0, 2, 5],\n'
-            '  "reasons": ["short reason 1", "short reason 2", "short reason 3"]\n'
-            "}\n\n"
-            f"Question:\n{query}\n\n"
-            f"Candidates:\n{candidates}\n"
+        # rerank_prompt = (
+        #     "You are a retrieval re-ranker.\n"
+        #     "Given a user question and a list of candidate contexts, select the most relevant items.\n"
+        #     "Rules:\n"
+        #     f"- Choose exactly {choose_k} distinct indices.\n"
+        #     "- Prefer contexts that directly contain facts needed to answer.\n"
+        #     "- Avoid redundant/duplicate contexts.\n"
+        #     "- Output ONLY valid JSON, no extra text.\n\n"
+        #     "{\n"
+        #     '  "selected_indices": [0, 2, 5],\n'
+        #     '  "reasons": ["short reason 1", "short reason 2", "short reason 3"]\n'
+        #     "}\n\n"
+        #     f"Question:\n{query}\n\n"
+        #     f"Candidates:\n{candidates}\n"
+        # )
+
+        rerank_prompt = self.rerank_prompt_template.format(
+            choose_k=choose_k,
+            query=query,
+            candidates=candidates,
         )
 
         try:
@@ -511,15 +603,20 @@ class RAGEngineQdrant:
 # {context}
 # """.strip()
 
-        prompt = (
-            "You are an assistant that answers strictly from retrieved context.\n"
-            "IMPORTANT RULES:\n"
-            "- Use ONLY the information in the Context.\n"
-            "- If the Context does not contain the answer, reply exactly: \"I don't know based on the provided context.\"\n"
-            "- Keep the answer clear and concise.\n\n"
-            f"Context:\n{context}\n\n"
-            f"Question: {query}\n\n"
-            "Answer:"
+        # prompt = (
+        #     "You are an assistant that answers strictly from retrieved context.\n"
+        #     "IMPORTANT RULES:\n"
+        #     "- Use ONLY the information in the Context.\n"
+        #     "- If the Context does not contain the answer, reply exactly: \"I don't know based on the provided context.\"\n"
+        #     "- Keep the answer clear and concise.\n\n"
+        #     f"Context:\n{context}\n\n"
+        #     f"Question: {query}\n\n"
+        #     "Answer:"
+        # )
+
+        prompt = self.answer_prompt_template.format(
+            context=context,
+            query=query,
         )
 
         start = time.time()
@@ -542,6 +639,8 @@ def make_engine_from_settings(s: Dict[str, Any]) -> RAGEngineQdrant:
         qdrant_url=s.get("qdrant_url", DEFAULT_QDRANT_URL),
         api_key=DEFAULT_QDRANT_API_KEY,
         collection_prefix=s.get("collection_prefix", DEFAULT_COLLECTION_PREFIX),
+        rerank_prompt_template=s.get("rerank_prompt_template", DEFAULT_RERANK_PROMPT_TEMPLATE),
+        answer_prompt_template=s.get("answer_prompt_template", DEFAULT_ANSWER_PROMPT_TEMPLATE),        
     )
     emb = s.get("embedding_model", EmbeddingModel)
     main = s.get("main_model", DEFAULT_MODEL)
@@ -563,7 +662,8 @@ class SettingsIn(BaseModel):
     txt_chunk_chars: Optional[int] = None
     txt_overlap: Optional[int] = None
     batch_size: Optional[int] = None
-
+    rerank_prompt_template: Optional[str] = None
+    answer_prompt_template: Optional[str] = None
 class QueryIn(BaseModel):
     query: str = Field(..., min_length=1)
     topk_retrieve: Optional[int] = None

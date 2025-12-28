@@ -6,5 +6,9 @@
   "enable_rerank": false,
   "text_group_lines": 1,
   "embedding_model": "all-minilm:latest",
-  "main_model": "qwen3:1.7b"
+  "main_model": "qwen3:1.7b",
+  "docs_dir": "D:\\LLM\\LLMs_Tests\\rag_data\\my_csvs\\docs",
+  "txt_chunk_chars": 900,
+  "txt_overlap": 120,
+  "batch_size": 64
 }

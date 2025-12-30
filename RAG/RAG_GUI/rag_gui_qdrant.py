@@ -11,16 +11,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+# from flask.cli import 
+from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 from typing import Dict
-
+from google import genai
+from openai import OpenAI
 import ollama
 from qdrant_client import QdrantClient, models as qmodels
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from models_config import CHAT_MODELS, DEFAULT_MODEL, EmbeddingModel, EmbeddingModelList
+from models_config import CHAT_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL, EMBEDDING_MODELS, \
+    CHAT_MODELS_GEMINI, CHAT_MODELS_OPENAI, EMBEDDING_MODELS_OPENAI, EMBEDDING_MODELS_GEMINI
+    # DEFAULT_MODEL_GEMINI, EMBEDDING_MODEL_GEMINI, DEFAULT_MODEL_OPENAI, EMBEDDING_MODEL_OPENAI, \
 
 # '''
 # To Run:
@@ -47,6 +52,8 @@ from models_config import CHAT_MODELS, DEFAULT_MODEL, EmbeddingModel, EmbeddingM
 # Support CSV + TXT files in the same folder for ingestion
 # Use Qdrant for vector storage and retrieval
 # Enable change Prompt and Prompt templates for Reranking and Answering from settings GUI
+# Use Gemeni / OpenAI / Ollama for embeddings + chat
+# Gemeni and OpenAI need API keys in keys.env file
 # ------------------ App Defaults ------------------
 
 APP_TITLE = "RAG GUI (CSV/TXT) : Qdrant Local + Ollama (Embeddings + Chat)"
@@ -57,6 +64,13 @@ RAG_DATA_0_FOLDER_NAME = "rag_data"
 RAG_DATA_1_FOLDER_NAME = "my_csvs"
 RAG_DATA_2_FOLDER_NAME = "docs"
 # rag_data\my_csvs\docs
+
+OLLAMA_PROVIDER = "ollama"
+GEMINI_PROVIDER = "gemini"
+OPENAI_PROVIDER = "openai"  # treat OpenAI as Gemini for this RAG engine
+ALL_PROVIDERS = [OLLAMA_PROVIDER, GEMINI_PROVIDER, OPENAI_PROVIDER]
+GEMINI_API_KEY_ENV_VAR = "GEMINI_API_KEY"
+OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
 
 # ------------------ Default Config ------------------
 DEFAULT_QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
@@ -69,6 +83,11 @@ DEFAULT_ENABLE_RERANK = False  # disable reranking by default
 DEFAULT_TEXT_GROUP_LINES = 1  # lines per chunk for TXT files
 
 DEFAULT_DOCS_DIR = str(Path(RAG_DATA_0_FOLDER_NAME) / RAG_DATA_1_FOLDER_NAME / RAG_DATA_2_FOLDER_NAME)
+
+DEFAULT_PROVIDER = OLLAMA_PROVIDER   # "ollama" | "gemini" | "openai"
+DEFAULT_ENV_PATH = str(Path(__file__).parent.parent.parent.parent / "keys.env")     # keys file path for Gemini API key 
+# ENV_PATH = Path(__file__).parent.parent.parent / "keys.env"
+print("DEFAULT_ENV_PATH:", DEFAULT_ENV_PATH)
 
 DEFAULT_RERANK_PROMPT_TEMPLATE = (
     "You are a retrieval re-ranker.\n"
@@ -157,7 +176,7 @@ class RAGEngineQdrant:
 
         self.client = QdrantClient(url=self.qdrant_url, api_key=self.api_key)
 
-        self.embedding_model = EmbeddingModel
+        self.embedding_model = EMBEDDING_MODEL
         self.main_model = DEFAULT_MODEL
 
         self.collection_name: Optional[str] = None
@@ -165,6 +184,33 @@ class RAGEngineQdrant:
 
         self.rerank_prompt_template = DEFAULT_RERANK_PROMPT_TEMPLATE
         self.answer_prompt_template = DEFAULT_ANSWER_PROMPT_TEMPLATE
+
+    def set_provider(
+        self,
+        main_provider: str,
+        embedding_provider: str,
+        # cloud_api_key: str = "",
+        # gemini_chat_model: str = DEFAULT_GEMINI_CHAT_MODEL,
+        # gemini_embed_model: str = DEFAULT_GEMINI_EMBED_MODEL,
+    ):
+        self.main_provider = (main_provider or OLLAMA_PROVIDER).strip().lower()
+        self.embedding_provider = (embedding_provider or OLLAMA_PROVIDER).strip().lower()
+        self.providers = [self.main_provider, self.embedding_provider]
+        # self.cloud_api_key = (cloud_api_key or self.cloud_api_key or "").strip()
+        # self.gemini_chat_model = gemini_chat_model
+        # self.gemini_embed_model = gemini_embed_model
+
+        if GEMINI_PROVIDER in self.providers:
+            self.cloud_api_key = os.getenv(GEMINI_API_KEY_ENV_VAR, "")
+            if not self.cloud_api_key:
+                raise ValueError("Gemini provider selected but GEMINI_API_KEY is missing.")
+            self._gemini_client = genai.Client(api_key=self.cloud_api_key)
+
+        if OPENAI_PROVIDER in self.providers:
+            self.cloud_api_key = os.getenv(OPENAI_API_KEY_ENV_VAR, "")
+            if not self.cloud_api_key:
+                raise ValueError("OpenAI provider selected but OPENAI_API_KEY is missing.")
+            self._openai_client = OpenAI(api_key=self.cloud_api_key)
 
     def set_prompts(self, rerank_template: str, answer_template: str):
         self.rerank_prompt_template = (rerank_template or "").strip() or DEFAULT_RERANK_PROMPT_TEMPLATE
@@ -187,6 +233,26 @@ class RAGEngineQdrant:
         self.vector_dim = None
 
     def _embed(self, text: str) -> np.ndarray:
+        text = text or ""
+        if self.embedding_provider == GEMINI_PROVIDER:
+            # Gemini embeddings
+            resp = self._gemini_client.models.embed_content(
+                model=self.embedding_model, #gemini_embed_model,
+                contents=text,
+            )
+            vec = np.array(resp.embeddings[0].values, dtype=np.float32)
+            return vec    
+           
+        if self.embedding_provider == OPENAI_PROVIDER:
+            # OpenAI embeddings
+            resp = self._openai_client.embeddings.create(
+                model=self.embedding_model,
+                input=text,
+            )
+            vec = np.array(resp.data[0].embedding, dtype=np.float32)
+            return vec
+        print("OLLAMA embedding model:", self.embedding_provider)                   
+        # Ollama embeddings 
         resp = ollama.embeddings(model=self.embedding_model, prompt=text)
         vec = np.array(resp["embedding"], dtype=np.float32)
         return vec
@@ -602,11 +668,37 @@ class RAGEngineQdrant:
             candidates=candidates,
         )
         try:
-            resp = ollama.chat(
-                model=self.main_model,
-                messages=[{"role": "user", "content": rerank_prompt}],
-            )
-            out = resp["message"]["content"]
+            if self.main_provider == GEMINI_PROVIDER:
+                r = self._gemini_client.models.generate_content(
+                    model=self.main_model, #gemini_chat_model,
+                    contents=rerank_prompt,
+                )
+                out = r.text or ""
+            # elif self.provider == OPENAI_PROVIDER:
+            #     r = self._openai_client.chat.completions.create(
+            #         model=self.main_model, # gpt-4.1 , gpt-4.1-mini
+            #         messages=[
+            #             {"role": "user", "content": rerank_prompt}
+            #         ]
+            #     )
+            #     out = r.choices[0].message.content or ""
+            elif self.main_provider == OPENAI_PROVIDER:
+                r = self._openai_client.responses.create(
+                    model=self.main_model,   # gpt-4o-mini
+                    input=rerank_prompt,
+                )
+                out = r.output_text or ""            
+            else:
+                resp = ollama.chat(
+                    model=self.main_model,
+                    messages=[{"role": "user", "content": rerank_prompt}],
+                )
+                out = resp["message"]["content"]            
+            # resp = ollama.chat(
+            #     model=self.main_model,
+            #     messages=[{"role": "user", "content": rerank_prompt}],
+            # )
+            # out = resp["message"]["content"]
             obj = self._extract_json_object(out)
             if not obj:
                 raise ValueError("No JSON object found in rerank output.")
@@ -790,14 +882,34 @@ class RAGEngineQdrant:
         #         )       
 
         start = time.time()
-        resp = ollama.chat(
-            model=self.main_model,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        
+        # resp = ollama.chat(
+        #     model=self.main_model,
+        #     messages=[{"role": "user", "content": prompt}],
+        # )
+        if self.main_provider == GEMINI_PROVIDER:
+            r = self._gemini_client.models.generate_content(
+                model=self.main_model,
+                contents=prompt,
+            )
+            answer_text = r.text or ""
+        elif self.main_provider == OPENAI_PROVIDER:
+            r = self._openai_client.responses.create(
+                model=self.main_model,   # gpt-4o-mini
+                input=prompt,
+            )
+            answer_text = r.output_text or ""             
+        else:
+            resp = ollama.chat(
+                model=self.main_model,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            answer_text = resp["message"]["content"]   
+
         latency = time.time() - start
 
         return {
-            "answer": resp["message"]["content"],
+            "answer": answer_text, #resp["message"]["content"],
             "context": context,
             "hits": hits,
             "selected": selected,
@@ -836,12 +948,18 @@ class RAGAppGUI:
         self.rerank_prompt_var = tk.StringVar(value=loaded.get("rerank_prompt_template", DEFAULT_RERANK_PROMPT_TEMPLATE))
         self.answer_prompt_var = tk.StringVar(value=loaded.get("answer_prompt_template", DEFAULT_ANSWER_PROMPT_TEMPLATE))
         
+        self.main_provider_var = tk.StringVar(value=loaded.get("main_provider", DEFAULT_PROVIDER))
+        self.embedding_provider_var = tk.StringVar(value=loaded.get("embedding_provider", DEFAULT_PROVIDER))
+        self.env_path_var = tk.StringVar(value=loaded.get("env_path", DEFAULT_ENV_PATH))
+
+        # self._load_env_from_settings()
+
         # # Models state
-        # self.embedding_model = EmbeddingModel
+        # self.embedding_model = EMBEDDING_MODEL
         # self.main_model = DEFAULT_MODEL
 
         # Models state (load from file if exists)
-        self.embedding_model = loaded.get("embedding_model", EmbeddingModel)  
+        self.embedding_model = loaded.get("embedding_model", EMBEDDING_MODEL)  
         self.main_model = loaded.get("main_model", DEFAULT_MODEL)            
 
         # # Settings state
@@ -860,18 +978,23 @@ class RAGAppGUI:
         self.enable_rerank = tk.BooleanVar(value=_safe_bool(loaded.get("enable_rerank", DEFAULT_ENABLE_RERANK), DEFAULT_ENABLE_RERANK))
         self.text_group_lines = tk.IntVar(value=_safe_int(loaded.get("text_group_lines", DEFAULT_TEXT_GROUP_LINES), DEFAULT_TEXT_GROUP_LINES))
 
-        # Engine (created lazily/refreshable)
-        self.engine = self._make_engine()
+        # # Engine (created lazily/refreshable)
+        # self.engine = self._make_engine()
 
         # Thread-safe UI logging via queue
         self.ui_queue: "queue.Queue[tuple[str, Any]]" = queue.Queue()
 
         # Build UI
-        self._build_ui()
+        self._build_ui() # here init logging
+
+        self._load_env_from_settings() # load env after UI is built, for logging
+
+        # Engine (created lazily/refreshable)
+        self.engine = self._make_engine() # here after env load        
 
         # Ensure combos reflect loaded models (and clamp if invalid)
-        if self.embedding_model not in EmbeddingModelList:
-            self.embedding_model = EmbeddingModel
+        if self.embedding_model not in EMBEDDING_MODELS:
+            self.embedding_model = EMBEDDING_MODEL
         if self.main_model not in CHAT_MODELS:
             self.main_model = DEFAULT_MODEL
         self.embedding_combo.set(self.embedding_model)
@@ -881,6 +1004,21 @@ class RAGAppGUI:
         # Start UI queue pump
         self._pump_ui_queue()
 
+    def _load_env_from_settings(self):
+        p = (self.env_path_var.get() or "").strip()
+        if not p:
+            return
+
+        env_path = Path(p)
+        if not env_path.is_absolute():
+            env_path = self.script_dir / env_path
+
+        if env_path.exists():
+            load_dotenv(env_path)
+            self._append_log(f"[ENV] Loaded: {env_path}")
+        else:
+            self._append_log(f"[ENV] Not found: {env_path}")
+
     def _make_engine(self) -> RAGEngineQdrant:
         eng = RAGEngineQdrant(
             qdrant_url=self.qdrant_url.get(),
@@ -888,7 +1026,13 @@ class RAGAppGUI:
             collection_prefix=self.collection_prefix.get(),
         )
         eng.set_models(self.embedding_model, self.main_model)
-        eng.set_prompts(self.rerank_prompt_var.get(), self.answer_prompt_var.get())
+        eng.set_prompts(self.rerank_prompt_var.get(), self.answer_prompt_var.get())      
+        eng.set_provider(
+            main_provider=self.main_provider_var.get(),
+            embedding_provider=self.embedding_provider_var.get(),
+            # gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+        )
+        
         return eng
 
     def _open_docs_dir(self):
@@ -979,7 +1123,7 @@ class RAGAppGUI:
 
         tk.Label(toolbar, text="Embedding Model:").pack(side=tk.LEFT, padx=(0, 6))
         self.embedding_combo = ttk.Combobox(
-            toolbar, values=EmbeddingModelList, state="readonly", width=28
+            toolbar, values=EMBEDDING_MODELS, state="readonly", width=28
         )
         self.embedding_combo.set(self.embedding_model)
         self.embedding_combo.pack(side=tk.LEFT, padx=(0, 14))
@@ -1011,7 +1155,7 @@ class RAGAppGUI:
 
         self._build_tab_query()
         self._build_tab_results()
-        self._build_tab_logs()
+        self._build_tab_logs()  # Build the logs tab
         self._build_tab_settings()
 
     def _build_tab_query(self):
@@ -1055,8 +1199,67 @@ class RAGAppGUI:
         self.logs_text = scrolledtext.ScrolledText(frm, font=("Consolas", 11))
         self.logs_text.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
 
+    def _make_scrollable_frame(self, parent: tk.Widget) -> tk.Frame:
+        """
+        Returns an inner frame inside a Canvas+Scrollbar so we can scroll vertically.
+        Put all settings widgets into the returned frame.
+        """
+        container = tk.Frame(parent)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(container, highlightthickness=0)
+        vscroll = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vscroll.set)
+
+        vscroll.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        inner = tk.Frame(canvas)
+        window_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_inner_configure(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas_configure(event):
+            # Make inner frame width follow canvas width
+            canvas.itemconfig(window_id, width=event.width)
+
+        inner.bind("<Configure>", _on_inner_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        # Mouse wheel support (Windows/macOS/Linux)
+        def _on_mousewheel(event):
+            # Windows: event.delta is +/-120
+            # macOS: event.delta is small
+            # Linux: uses Button-4/5
+            if getattr(event, "delta", 0):
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _on_linux_scroll_up(_event):
+            canvas.yview_scroll(-3, "units")
+
+        def _on_linux_scroll_down(_event):
+            canvas.yview_scroll(3, "units")
+
+        # Bind when mouse enters/leaves the scroll area
+        def _bind_wheel(_event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<Button-4>", _on_linux_scroll_up)
+            canvas.bind_all("<Button-5>", _on_linux_scroll_down)
+
+        def _unbind_wheel(_event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+
+        inner.bind("<Enter>", _bind_wheel)
+        inner.bind("<Leave>", _unbind_wheel)
+
+        return inner
+
     def _build_tab_settings(self):
-        frm = self.tab_settings
+        # frm = self.tab_settings
+        frm = self._make_scrollable_frame(self.tab_settings)
         frm.columnconfigure(1, weight=1)
 
         row = 0
@@ -1123,11 +1326,57 @@ class RAGAppGUI:
         self.answer_prompt_text.insert("1.0", self.answer_prompt_var.get())
         row += 1
 
-        tk.Button(frm, text="Apply Settings", command=self._apply_settings)\
-            .grid(row=row, column=1, sticky="w", padx=6, pady=(10, 6))
+        # MainProvider
+        tk.Label(frm, text="Main LLM Provider:").grid(row=row, column=0, sticky="w", padx=6, pady=6)
+        ttk.Combobox(
+            frm,
+            values= ALL_PROVIDERS, #["ollama", "gemini", "openai"],
+            textvariable=self.main_provider_var,
+            state="readonly",
+            width=15
+        ).grid(row=row, column=1, sticky="w", padx=6, pady=6)
+        row += 1
+
+        # EmbeddingProvider
+        tk.Label(frm, text="Embedding LLM Provider:").grid(row=row, column=0, sticky="w", padx=6, pady=6)
+        ttk.Combobox(
+            frm,
+            values= ALL_PROVIDERS, #["ollama", "gemini", "openai"],
+            textvariable=self.embedding_provider_var,
+            state="readonly",
+            width=15
+        ).grid(row=row, column=1, sticky="w", padx=6, pady=6)
+        row += 1
+
+        # Env file path
+        tk.Label(frm, text=".env File Path:").grid(row=row, column=0, sticky="w", padx=6, pady=6)
+        tk.Entry(frm, textvariable=self.env_path_var).grid(row=row, column=1, sticky="ew", padx=6, pady=6)
+        row += 1
+
+        # tk.Button(frm, text="Apply Settings", command=self._apply_settings)\
+        #     .grid(row=row, column=1, sticky="w", padx=6)
         
-        tk.Button(frm, text="Reset to Defaults", command=self._reset_to_defaults)\
-            .grid(row=row+1, column=1, sticky="w", padx=6, pady=(0, 10))
+        # tk.Button(frm, text="Reset to Defaults", command=self._reset_to_defaults)\
+        #     .grid(row=row, column=2, sticky="w", padx=6)
+
+        # Buttons row (Apply / Reset side-by-side)
+        btn_row = tk.Frame(frm)
+        btn_row.grid(row=row, column=1, sticky="w", padx=6, pady=(10, 10))
+
+        tk.Button(
+            btn_row,
+            text="Apply Settings",
+            command=self._apply_settings,
+            width=16
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            btn_row,
+            text="Reset to Defaults",
+            command=self._reset_to_defaults,
+            width=16
+        ).pack(side=tk.LEFT, padx=(10, 0))
+        row += 1
 
     # ---------- Thread safe UI queue ----------
     def _ui_put(self, action: str, payload: Any = None):
@@ -1150,6 +1399,16 @@ class RAGAppGUI:
         except queue.Empty:
             pass
         self.root.after(50, self._pump_ui_queue)
+
+    def _append_log_for_provider(self):
+        env_path_var_text = ""
+        if(self.main_provider_var.get() != OLLAMA_PROVIDER):
+            env_path_var_text = f", env={self.env_path_var.get()}"
+        elif (self.embedding_provider_var.get() != OLLAMA_PROVIDER):
+                env_path_var_text = f", env={self.env_path_var.get()}"
+        self._append_log(
+            f"[Settings] Applied. main_provider={self.main_provider_var.get()}, embedding_provider={self.embedding_provider_var.get()} {env_path_var_text}"
+        )
 
     def _append_log(self, text: str):
         self.logs_text.insert(tk.END, text + "\n")
@@ -1180,13 +1439,16 @@ class RAGAppGUI:
             "docs_dir": DEFAULT_DOCS_DIR,
             "rerank_prompt_template": DEFAULT_RERANK_PROMPT_TEMPLATE,
             "answer_prompt_template": DEFAULT_ANSWER_PROMPT_TEMPLATE,            
-            "embedding_model": EmbeddingModel,
+            "embedding_model": EMBEDDING_MODEL,
             "main_model": DEFAULT_MODEL,
+            "main_provider": DEFAULT_PROVIDER,
+            "embedding_provider": DEFAULT_PROVIDER,
+            "env_path": DEFAULT_ENV_PATH,
         }
 
     def _load_settings_file(self) -> Dict[str, Any]:
         defaults = self._default_settings_dict()
-
+        print(f"Loading settings from: {self.settings_path} {defaults}")
         if not self.settings_path.exists():
             # Create the file with defaults the first time
             try:
@@ -1225,6 +1487,9 @@ class RAGAppGUI:
             "answer_prompt_template": self.answer_prompt_var.get(),
             "embedding_model": self.embedding_model,
             "main_model": self.main_model,
+            "main_provider": self.main_provider_var.get(),
+            "embedding_provider": self.embedding_provider_var.get(),
+            "env_path": self.env_path_var.get(),            
         }
         self.settings_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -1241,9 +1506,21 @@ class RAGAppGUI:
         self.csv_dir.mkdir(parents=True, exist_ok=True)
         self._append_log(f"[Docs] Using folder: {self.csv_dir}")
 
+        self._load_env_from_settings()
+
         # Recreate engine with new settings and prompts
         self.engine = self._make_engine()
         self._append_log(f"[Settings] Applied. Qdrant={self.qdrant_url.get()}, prefix={self.collection_prefix.get()}, docs_dir={self.csv_dir}")
+        
+        self._append_log_for_provider()
+
+        # env_path_var_text = ""
+        # if(self.provider_var.get() != OLLAMA_PROVIDER):
+        #     env_path_var_text = f", env={self.env_path_var.get()}"
+
+        # self._append_log(
+        #     f"[Settings] Applied. provider={self.provider_var.get()} {env_path_var_text}"
+        # )
 
         # SAVE to rag_settings.json
         try:
@@ -1321,6 +1598,14 @@ class RAGAppGUI:
         self.embedding_model = self.embedding_combo.get()
         self.engine.set_models(self.embedding_model, self.main_model)
         self._append_log(f"[Models] Embedding model set to: {self.embedding_model}")
+
+        self.embedding_provider_var.set(OLLAMA_PROVIDER)
+        if(self.embedding_model in EMBEDDING_MODELS_GEMINI):
+            self.embedding_provider_var.set(GEMINI_PROVIDER)
+        if(self.embedding_model in EMBEDDING_MODELS_OPENAI):
+                    self.embedding_provider_var.set(OPENAI_PROVIDER)            
+        self._append_log_for_provider()
+
         try:
             self._save_settings_file()
         except Exception:
@@ -1330,6 +1615,14 @@ class RAGAppGUI:
         self.main_model = self.main_combo.get()
         self.engine.set_models(self.embedding_model, self.main_model)
         self._append_log(f"[Models] Main model set to: {self.main_model}")
+
+        self.main_provider_var.set(OLLAMA_PROVIDER)
+        if(self.main_model in CHAT_MODELS_GEMINI):
+            self.main_provider_var.set(GEMINI_PROVIDER)
+        if(self.main_model in CHAT_MODELS_OPENAI):
+            self.main_provider_var.set(OPENAI_PROVIDER)
+        self._append_log_for_provider()
+
         try:
             self._save_settings_file()
         except Exception:
@@ -1445,6 +1738,7 @@ class RAGAppGUI:
             lines = []
             lines.append(f"Query: {query}")
             lines.append(f"Collection: {collection}")
+            lines.append(f"Provider: main={self.main_provider_var.get()} | embedding={self.embedding_provider_var.get()}")
             lines.append(f"Models: main={self.main_model} | embedding={self.embedding_model}")
             lines.append(f"Retrieve top_k={topk_retrieve} | Use top_k={topk_use} | Rerank={enable_rerank}")
             lines.append(f"Latency: {latency:.3f} seconds")

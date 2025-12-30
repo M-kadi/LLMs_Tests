@@ -6,11 +6,14 @@
   "enable_rerank": false,
   "text_group_lines": 1,
   "embedding_model": "all-minilm:latest",
-  "main_model": "qwen3:1.7b",
-  "docs_dir": "D:\\LLM\\LLMs_Tests\\rag_data\\my_csvs\\docs",
+  "main_model": "gemini-2.5-flash",
+  "docs_dir": "D:\\LLM\\LLM_Tests\\LLMs_Tests\\RAG\\rag_data\\my_csvs\\docs",
   "txt_chunk_chars": 900,
   "txt_overlap": 120,
   "batch_size": 64,
-  "rerank_prompt_template": "You are a retrieval re-ranker.\nGiven a user question and a list of candidate contexts, select the most relevant items.\nRules:\n- Choose exactly {choose_k} distinct indices.\n- Prefer contexts that directly contain facts needed to answer.\n- Avoid redundant/duplicate contexts.\n- Output ONLY valid JSON, no extra text.\n\nReturn JSON format:\n{{\n  \"selected_indices\": [0, 2, 5],\n  \"reasons\": [\"short reason 1\", \"short reason 2\", \"short reason 3\"]\n}}\n\nQuestion:\n{query}\n\nCandidates:\n{candidates}",
-  "answer_prompt_template": "You are a hybrid RAG assistant.\n\nDecision rules:\n1) If the Context contains information that directly answers the Question, answer using ONLY the Context.\n2) If the Question is a general knowledge question and the Context is irrelevant or unrelated, ignore the Context and answer normally.\n\nContext:\\n{context}\n\nQuestion: {query}\n\nAnswer:\""
+  "rerank_prompt_template": "You are a retrieval re-ranker.\nGiven a user question and a list of candidate contexts, select the most relevant items.\nRules:\n- Choose exactly {choose_k} distinct indices.\n- Prefer contexts that directly contain facts needed to answer.\n- Avoid redundant/duplicate contexts.\n- Output ONLY valid JSON, no extra text.\n\nReturn JSON format:\n{{\n  \"selected_indices\": [0, 2, 5],\n  \"reasons\": [\"short reason 1\", \"short reason 2\", \"short reason 3\"]\n}}\n\nQuestion:\n{query}\n\nCandidates:\n{candidates}\n",
+  "answer_prompt_template": "You are a hybrid RAG assistant.\n\nDecision rules:\n1) If the Context contains information that directly answers the Question, answer using ONLY the Context.\n2) If the Question is a general knowledge question and the Context is irrelevant or unrelated, ignore the Context and answer normally.\n\nContext:\\n{context}\n\nQuestion: {query}\n\nAnswer:\"",
+  "main_provider": "gemini",
+  "embedding_provider": "ollama",
+  "env_path": "D:\\LLM\\LLM_Tests\\keys.env"
 }

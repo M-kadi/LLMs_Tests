@@ -11,7 +11,7 @@ import ollama
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from models_config import CHAT_MODELS, DEFAULT_MODEL, EmbeddingModel, EmbeddingModelList
+from models_config import CHAT_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL, EMBEDDING_MODELS
 
 """
 Ollama embeddings + NumPy is simpler, portable, Windows-friendly
@@ -26,7 +26,7 @@ MainModel = DEFAULT_MODEL #"deepseek-r1:1.5b"
 
 # An Ollama **embedding** model (must be pulled via `ollama pull`).
 # Good options: "all-minilm", "mxbai-embed-large", "nomic-embed-text"
-# EmbeddingModel = "all-minilm"
+# EMBEDDING_MODEL = "all-minilm"
 
 # MainModelList = [
 #     "deepseek-r1:1.5b",
@@ -39,7 +39,7 @@ MainModel = DEFAULT_MODEL #"deepseek-r1:1.5b"
 # ]
 
 MainModelList = CHAT_MODELS
-# EmbeddingModelList = [
+# EMBEDDING_MODELS = [
 #     "all-minilm",
 #     "mxbai-embed-large",
 #     "nomic-embed-text",
@@ -90,9 +90,9 @@ class RAGApp:
         os.makedirs(self.csv_dir, exist_ok=True)
 
         # Default models
-        self.embedding_model = EmbeddingModel
+        self.embedding_model = EMBEDDING_MODEL
         self.main_model = MainModel
-        self.available_embedding_models = EmbeddingModelList
+        self.available_embedding_models = EMBEDDING_MODELS
         self.available_main_models = MainModelList
 
         # Embedding matrix + chunks (lazy-loaded)

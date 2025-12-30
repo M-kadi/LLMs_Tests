@@ -18,12 +18,18 @@ from qdrant_client import QdrantClient, models as qmodels
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from dotenv import load_dotenv
+from google import genai
+from openai import OpenAI
+
 # ------------------------------------------------------------
 # Your existing models_config import (keep your same file)
 # ------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from models_config import CHAT_MODELS, DEFAULT_MODEL, EmbeddingModel, EmbeddingModelList
-
+from models_config import DEFAULT_MODEL, EMBEDDING_MODEL, CHAT_MODELS, EMBEDDING_MODELS,\
+    EMBEDDING_MODELS_OLLAMA, EMBEDDING_MODELS_GEMINI, EMBEDDING_MODELS_OPENAI, \
+    CHAT_MODELS_OLLAMA, CHAT_MODELS_GEMINI, CHAT_MODELS_OPENAI
+# ------------------------------------------------------------
 
 '''
 pip install fastapi uvicorn pydantic qdrant-client pandas numpy ollama
@@ -33,12 +39,12 @@ uvicorn rag_api_qdrant:app --host 0.0.0.0 --port 8000 --reload
 # - Start Docker Desktop
 # - Start Ollama application
 # - Start Qdrant locally: from command line, run:
-#  D:\LLM\LLMs_Tests\RAG\RAG_API>
+#  D:\LLM\LLM_Tests\LLMs_Tests\RAG\RAG_API>
     # docker run -p 6333:6333 -p 6334:6334 ^
     # -v %cd%\qdrant_data:/qdrant/storage ^
     # qdrant/qdrant
 # - Then run this script:
-#     D:\LLM\LLMs_Tests\RAG\RAG_API>
+#     D:\LLM\LLM_Tests\LLMs_Tests\RAG\RAG_API>
     # uvicorn rag_api_qdrant:app --host 0.0.0.0 --port 8000 --reload
     # Open browser to (Swagger): http://localhost:8000/docs
     # Test endpoints
@@ -67,6 +73,26 @@ uvicorn rag_api_qdrant:app --host 0.0.0.0 --port 8000 --reload
 # ------------------ App Defaults ------------------
 # ------------------ Default Settings ------------------
 APP_TITLE = "RAG Fast API : Qdrant Local + Ollama (Embeddings + Chat)"
+
+# ------------------ Providers ------------------
+OLLAMA_PROVIDER = "ollama"
+GEMINI_PROVIDER = "gemini"
+OPENAI_PROVIDER = "openai"
+ALL_PROVIDERS = [OLLAMA_PROVIDER, GEMINI_PROVIDER, OPENAI_PROVIDER]
+
+GEMINI_API_KEY_ENV_VAR = "GEMINI_API_KEY"
+OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
+
+DEFAULT_MAIN_PROVIDER = OLLAMA_PROVIDER
+DEFAULT_EMBEDDING_PROVIDER = OLLAMA_PROVIDER
+
+# ------------------ Env Path ------------------
+# DEFAULT_ENV_PATH = "keys.env"   # can be absolute or relative
+# GUI uses: Path(__file__).parent.parent.parent.parent / "keys.env"
+# Keep same style here for consistency across GUI/API folders.
+DEFAULT_ENV_PATH = str(Path(__file__).parent.parent.parent.parent / "keys.env")
+
+
 # ------------------ Prompt Templates (Settings) ------------------
 # NOTE: These templates are stored in rag_settings.json and can be edited at runtime.
 # Keep placeholders:
@@ -196,6 +222,13 @@ class ChunkRecord:
 SCRIPT_DIR = Path(__file__).resolve().parent
 SETTINGS_PATH = SCRIPT_DIR / SETTINGS_FILE_NAME
 
+def _default_docs_dir() -> str:
+    # Match GUI's default: rag_data/my_csvs/docs (store absolute here)
+    project_root = SCRIPT_DIR.parent  # usually .../RAG if this file is under .../RAG_API
+    default_docs_dir = str((project_root / "rag_data" / "my_csvs" / "docs").resolve())
+    print("Default docs dir: ", default_docs_dir)
+    return default_docs_dir
+
 def default_settings_dict() -> Dict[str, Any]:
     return {
         "qdrant_url": DEFAULT_QDRANT_URL,
@@ -204,16 +237,20 @@ def default_settings_dict() -> Dict[str, Any]:
         "topk_use": DEFAULT_TOPK_USE,
         "enable_rerank": DEFAULT_ENABLE_RERANK,
         "text_group_lines": DEFAULT_TEXT_GROUP_LINES,
-        "embedding_model": EmbeddingModel,
+        "embedding_model": EMBEDDING_MODEL,
         "main_model": DEFAULT_MODEL,
         # Optional: folder location for docs
-        "docs_dir": str((SCRIPT_DIR / "rag_data" / "my_csvs" / "docs3").resolve()),
+        # "docs_dir": str((SCRIPT_DIR / "rag_data" / "my_csvs" / "docs").resolve()),
+        "docs_dir": _default_docs_dir(),
         # Optional chunk settings for TXT
         "txt_chunk_chars": 900,
         "txt_overlap": 120,
         "batch_size": 64,
         "rerank_prompt_template": DEFAULT_RERANK_PROMPT_TEMPLATE,
         "answer_prompt_template": DEFAULT_ANSWER_PROMPT_TEMPLATE,
+        "main_provider": DEFAULT_MAIN_PROVIDER,
+        "embedding_provider": DEFAULT_EMBEDDING_PROVIDER,
+        "env_path": DEFAULT_ENV_PATH,        
     }
 
 def load_settings() -> Dict[str, Any]:
@@ -255,6 +292,24 @@ def reset_settings() -> Dict[str, Any]:
     SETTINGS_PATH.write_text(json.dumps(defaults, indent=2), encoding="utf-8")
     return defaults
 
+def _resolve_env_path(env_path: str) -> Path:
+    p = (env_path or "").strip()
+    if not p:
+        return Path(DEFAULT_ENV_PATH)
+
+    path = Path(p)
+    if path.is_absolute():
+        return path
+    return (SCRIPT_DIR / path).resolve()
+
+def load_env_from_settings(s: Dict[str, Any]) -> None:
+    env_path = _resolve_env_path(s.get("env_path", ""))
+    if env_path.exists():
+        load_dotenv(env_path)
+        log(f"[ENV] Loaded: {env_path}")
+    else:
+        log(f"[ENV] Not found: {env_path}", "WARN")
+
 # ------------------ RAG Engine (Qdrant + Ollama) ------------------
 
 class RAGEngineQdrant:
@@ -267,17 +322,47 @@ class RAGEngineQdrant:
 
         self.client = QdrantClient(url=self.qdrant_url, api_key=self.api_key)
 
-        self.embedding_model = EmbeddingModel
+        self.embedding_model = EMBEDDING_MODEL
         self.main_model = DEFAULT_MODEL
 
         self.collection_name: Optional[str] = None
         self.vector_dim: Optional[int] = None
+
         self.rerank_prompt_template = rerank_prompt_template
-        self.answer_prompt_template = answer_prompt_template        
+        self.answer_prompt_template = answer_prompt_template      
+
+        # Providers
+        self.main_provider = OLLAMA_PROVIDER
+        self.embedding_provider = OLLAMA_PROVIDER
+        self._gemini_client: Optional[genai.Client] = None
+        self._openai_client: Optional[OpenAI] = None          
 
     @staticmethod
     def _slug(s: str) -> str:
         return s.replace(":", "_").replace("/", "_").replace("\\", "_").replace(" ", "_")
+
+    def set_provider(self, main_provider: str, embedding_provider: str):
+        self.main_provider = (main_provider or OLLAMA_PROVIDER).strip().lower()
+        self.embedding_provider = (embedding_provider or OLLAMA_PROVIDER).strip().lower()
+
+        if self.main_provider not in ALL_PROVIDERS:
+            raise ValueError(f"Invalid main_provider: {self.main_provider}. Must be one of {ALL_PROVIDERS}")
+        if self.embedding_provider not in ALL_PROVIDERS:
+            raise ValueError(f"Invalid embedding_provider: {self.embedding_provider}. Must be one of {ALL_PROVIDERS}")
+
+        providers = {self.main_provider, self.embedding_provider}
+
+        if GEMINI_PROVIDER in providers:
+            api_key = os.getenv(GEMINI_API_KEY_ENV_VAR, "")
+            if not api_key:
+                raise ValueError("Gemini provider selected but GEMINI_API_KEY is missing (check env_path).")
+            self._gemini_client = genai.Client(api_key=api_key)
+
+        if OPENAI_PROVIDER in providers:
+            api_key = os.getenv(OPENAI_API_KEY_ENV_VAR, "")
+            if not api_key:
+                raise ValueError("OpenAI provider selected but OPENAI_API_KEY is missing (check env_path).")
+            self._openai_client = OpenAI(api_key=api_key)
 
     def set_models(self, embedding_model: str, main_model: str):
         self.embedding_model = embedding_model
@@ -286,6 +371,25 @@ class RAGEngineQdrant:
         self.vector_dim = None
 
     def _embed(self, text: str) -> np.ndarray:
+        text = text or ""
+        if self.embedding_provider == GEMINI_PROVIDER:
+            if not self._gemini_client:
+                raise RuntimeError("Gemini client not initialized. Check env_path and embedding_provider.")
+            resp = self._gemini_client.models.embed_content(
+                model=self.embedding_model,
+                contents=text,
+            )
+            return np.array(resp.embeddings[0].values, dtype=np.float32)
+
+        if self.embedding_provider == OPENAI_PROVIDER:
+            if not self._openai_client:
+                raise RuntimeError("OpenAI client not initialized. Check env_path and embedding_provider.")
+            resp = self._openai_client.embeddings.create(
+                model=self.embedding_model,
+                input=text,
+            )
+            return np.array(resp.data[0].embedding, dtype=np.float32)
+        # Default: Ollama        
         resp = ollama.embeddings(model=self.embedding_model, prompt=text)
         return np.array(resp["embedding"], dtype=np.float32)
 
@@ -511,11 +615,13 @@ class RAGEngineQdrant:
         )
 
         try:
-            resp = ollama.chat(model=self.main_model, messages=[{"role": "user", "content": rerank_prompt}])
-            out = resp["message"]["content"]
+            # resp = ollama.chat(model=self.main_model, messages=[{"role": "user", "content": rerank_prompt}])
+            # out = resp["message"]["content"]
+            out = self._call_chat(rerank_prompt)
             obj = self._extract_json_object(out)
             if not obj:
                 raise ValueError("No JSON object found in rerank output.")
+            
             indices = obj.get("selected_indices", [])
             if not isinstance(indices, list):
                 raise ValueError("selected_indices is not a list")
@@ -619,12 +725,24 @@ class RAGEngineQdrant:
             query=query,
         )
 
+        # start = time.time()
+        # resp = ollama.chat(model=self.main_model, messages=[{"role": "user", "content": prompt}])
+        # latency = time.time() - start
+
+        # return {
+        #     "answer": resp["message"]["content"],
+        #     "context": context,
+        #     "hits": hits,
+        #     "selected": selected,
+        #     "latency": latency,
+        #     "collection": self.collection_name,
+        # }
         start = time.time()
-        resp = ollama.chat(model=self.main_model, messages=[{"role": "user", "content": prompt}])
+        answer_text = self._call_chat(prompt)
         latency = time.time() - start
 
         return {
-            "answer": resp["message"]["content"],
+            "answer": answer_text,
             "context": context,
             "hits": hits,
             "selected": selected,
@@ -632,9 +750,40 @@ class RAGEngineQdrant:
             "collection": self.collection_name,
         }
 
+
+    def _call_chat(self, prompt: str) -> str:
+        if self.main_provider == GEMINI_PROVIDER:
+            if not self._gemini_client:
+                raise RuntimeError("Gemini client not initialized. Check env_path and main_provider.")
+            r = self._gemini_client.models.generate_content(
+                model=self.main_model,
+                contents=prompt,
+            )
+            return r.text or ""
+
+        if self.main_provider == OPENAI_PROVIDER:
+            if not self._openai_client:
+                raise RuntimeError("OpenAI client not initialized. Check env_path and main_provider.")
+            try:
+                r = self._openai_client.responses.create(
+                    model=self.main_model,
+                    input=prompt,
+                )
+                return r.output_text or ""
+            except Exception:
+                r = self._openai_client.chat.completions.create(
+                    model=self.main_model,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return r.choices[0].message.content or ""
+
+        resp = ollama.chat(model=self.main_model, messages=[{"role": "user", "content": prompt}])
+        return resp["message"]["content"]
 # ------------------ Engine Factory ------------------
 
 def make_engine_from_settings(s: Dict[str, Any]) -> RAGEngineQdrant:
+    load_env_from_settings(s)
+
     eng = RAGEngineQdrant(
         qdrant_url=s.get("qdrant_url", DEFAULT_QDRANT_URL),
         api_key=DEFAULT_QDRANT_API_KEY,
@@ -642,13 +791,17 @@ def make_engine_from_settings(s: Dict[str, Any]) -> RAGEngineQdrant:
         rerank_prompt_template=s.get("rerank_prompt_template", DEFAULT_RERANK_PROMPT_TEMPLATE),
         answer_prompt_template=s.get("answer_prompt_template", DEFAULT_ANSWER_PROMPT_TEMPLATE),        
     )
-    emb = s.get("embedding_model", EmbeddingModel)
+    emb = s.get("embedding_model", EMBEDDING_MODEL)
     main = s.get("main_model", DEFAULT_MODEL)
     eng.set_models(emb, main)
+    eng.set_provider(
+        main_provider=s.get("main_provider", DEFAULT_MAIN_PROVIDER),
+        embedding_provider=s.get("embedding_provider", DEFAULT_EMBEDDING_PROVIDER),
+    )
+
     return eng
 
 # ------------------ FastAPI Models ------------------
-
 class SettingsIn(BaseModel):
     qdrant_url: Optional[str] = None
     collection_prefix: Optional[str] = None
@@ -664,6 +817,10 @@ class SettingsIn(BaseModel):
     batch_size: Optional[int] = None
     rerank_prompt_template: Optional[str] = None
     answer_prompt_template: Optional[str] = None
+    main_provider: Optional[str] = None
+    embedding_provider: Optional[str] = None
+    env_path: Optional[str] = None
+
 class QueryIn(BaseModel):
     query: str = Field(..., min_length=1)
     topk_retrieve: Optional[int] = None
@@ -692,8 +849,10 @@ def api_root():
 @app.on_event("startup")
 def _startup():
     s = load_settings()
+    load_env_from_settings(s)
     log(f"API started. Settings loaded from {SETTINGS_PATH}")
     log(f"Qdrant={s.get('qdrant_url')} prefix={s.get('collection_prefix')}")
+    log(f"Providers: main={s.get('main_provider')} embedding={s.get('embedding_provider')}")
     log(f"Models: embedding={s.get('embedding_model')} main={s.get('main_model')}")
 
 # ------------------ Settings Endpoints ------------------
@@ -707,14 +866,62 @@ def api_save_settings(body: SettingsIn):
     current = load_settings()
     upd = {k: v for k, v in body.model_dump().items() if v is not None}
     merged = save_settings({**current, **upd})
+    load_env_from_settings(merged)
     log("Settings saved.")
     return merged
 
 @app.post("/settings/reset")
 def api_reset_settings():
     s = reset_settings()
+    load_env_from_settings(s)
     log("Settings reset to defaults.")
     return s
+
+# ------------------ Model Lists (Main/Embedding by Provider) ------------------
+
+def _models_main_by_provider(provider: str) -> List[str]:
+    p = (provider or "").strip().lower()
+    if p == OLLAMA_PROVIDER:
+        return list(CHAT_MODELS_OLLAMA or CHAT_MODELS or [])
+    if p == GEMINI_PROVIDER:
+        return list(CHAT_MODELS_GEMINI or [])
+    if p == OPENAI_PROVIDER:
+        return list(CHAT_MODELS_OPENAI or [])
+    return []
+
+def _models_embedding_by_provider(provider: str) -> List[str]:
+    p = (provider or "").strip().lower()
+    if p == OLLAMA_PROVIDER:
+        return list(EMBEDDING_MODELS_OLLAMA or EMBEDDING_MODELS or ([EMBEDDING_MODEL] if EMBEDDING_MODEL else []))
+    if p == GEMINI_PROVIDER:
+        return list(EMBEDDING_MODELS_GEMINI or [])
+    if p == OPENAI_PROVIDER:
+        return list(EMBEDDING_MODELS_OPENAI or [])
+    return []
+
+@app.get("/models/main/ollama")
+def api_models_main_ollama():
+    return {"provider": OLLAMA_PROVIDER, "models": _models_main_by_provider(OLLAMA_PROVIDER)}
+
+@app.get("/models/main/gemini")
+def api_models_main_gemini():
+    return {"provider": GEMINI_PROVIDER, "models": _models_main_by_provider(GEMINI_PROVIDER)}
+
+@app.get("/models/main/openai")
+def api_models_main_openai():
+    return {"provider": OPENAI_PROVIDER, "models": _models_main_by_provider(OPENAI_PROVIDER)}
+
+@app.get("/models/embedding/ollama")
+def api_models_embedding_ollama():
+    return {"provider": OLLAMA_PROVIDER, "models": _models_embedding_by_provider(OLLAMA_PROVIDER)}
+
+@app.get("/models/embedding/gemini")
+def api_models_embedding_gemini():
+    return {"provider": GEMINI_PROVIDER, "models": _models_embedding_by_provider(GEMINI_PROVIDER)}
+
+@app.get("/models/embedding/openai")
+def api_models_embedding_openai():
+    return {"provider": OPENAI_PROVIDER, "models": _models_embedding_by_provider(OPENAI_PROVIDER)}
 
 # ------------------ Ping Qdrant ------------------
 
@@ -799,7 +1006,7 @@ def api_run_query(body: QueryIn):
     topk_retrieve = body.topk_retrieve if body.topk_retrieve is not None else _safe_int(s.get("topk_retrieve", DEFAULT_TOPK_RETRIEVE), DEFAULT_TOPK_RETRIEVE)
     topk_use = body.topk_use if body.topk_use is not None else _safe_int(s.get("topk_use", DEFAULT_TOPK_USE), DEFAULT_TOPK_USE)
     enable_rerank = body.enable_rerank if body.enable_rerank is not None else _safe_bool(s.get("enable_rerank", DEFAULT_ENABLE_RERANK), DEFAULT_ENABLE_RERANK)
-
+    print(f"API Query: topk_retrieve={topk_retrieve} topk_use={topk_use} enable_rerank={enable_rerank}")
     try:
         eng = make_engine_from_settings(s)
         result = eng.answer(
@@ -812,6 +1019,8 @@ def api_run_query(body: QueryIn):
             "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
             "query": body.query,
             "settings": {"topk_retrieve": topk_retrieve, "topk_use": topk_use, "enable_rerank": enable_rerank},
+            "provider": {"main": s.get("main_provider"), "embedding": s.get("embedding_provider")},
+            "models": {"main": s.get("main_model"), "embedding": s.get("embedding_model")},
             "result": result,
         }
         add_result(payload)
@@ -820,7 +1029,6 @@ def api_run_query(body: QueryIn):
     except Exception as e:
         log(f"Query failed: {e}", "ERROR")
         raise HTTPException(status_code=500, detail=str(e))
-
 # ------------------ Get all results ------------------
 
 @app.get("/results")

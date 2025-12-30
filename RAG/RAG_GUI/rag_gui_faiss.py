@@ -13,7 +13,7 @@ import ollama
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from models_config import CHAT_MODELS, DEFAULT_MODEL, EmbeddingModelList
+from models_config import CHAT_MODELS, DEFAULT_MODEL, EMBEDDING_MODELS
 
 
 """
@@ -57,8 +57,8 @@ MainModel = DEFAULT_MODEL #"deepseek-r1:1.5b"
 EmbeddingModel = 'all-MiniLM-L6-v2'
 # MainModelList = ["phi3:mini","deepseek-r1:1.5b", "deepseek-r1:7b", "gemma3", "gemma3:12b", "gemma-asil", "mistral", "qwen3:1.7b"]
 MainModelList = CHAT_MODELS
-# EmbeddingModelList = ["all-minilm:l12-v2", "mxbai-embed-large", "nomic-embed-text"]
-# EmbeddingModelList =EmbeddingModelList
+# EMBEDDING_MODELS = ["all-minilm:l12-v2", "mxbai-embed-large", "nomic-embed-text"]
+# EMBEDDING_MODELS =EMBEDDING_MODELS
 FormTitle = "RAG Pipeline GUI : Ollama (CSV Files) : sentence_transformers / faiss  / torch"
 
 RAG_DATA_0_FOLDER_NAME = "rag_data"
@@ -103,7 +103,7 @@ class RAGApp:
         # Default models
         self.embedding_model = EmbeddingModel
         self.main_model = MainModel
-        self.available_embedding_models = EmbeddingModelList
+        self.available_embedding_models = EMBEDDING_MODELS
         self.available_main_models = MainModelList
 
         # Load embedder with GPU support

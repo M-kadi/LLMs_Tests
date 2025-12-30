@@ -85,6 +85,6 @@ http://localhost:6333/dashboard#/collections
 
 ![Logs Window](RAG/RAG_GUI/Logs.PNG)
 
-![Settings Window](RAG/RAG_GUI/Settings.PNG)
+![Settings Window](RAG/RAG_GUI/SettingsWindow.PNG)
 
 ![Qdrant Collections](RAG/RAG_GUI/QdrantCollections.PNG)

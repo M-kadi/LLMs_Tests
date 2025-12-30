@@ -31,6 +31,8 @@ Open browser to (Swagger): http://localhost:8000/docs
 - Support CSV + TXT files in the same folder for ingestion
 - Use Qdrant for vector storage and retrieval
 - Enable Change Prompt and Prompt templates for Reranking and Answering from settings
+- Use Gemeni / OpenAI / Ollama for embeddings + chat
+- Gemeni and OpenAI need API keys in keys.env file
   
 ##### Endpoints
 - GET http://localhost:8000/docs
@@ -74,6 +76,8 @@ http://localhost:6333/dashboard#/collections
 - Support CSV + TXT files in the same folder for ingestion
 - Use Qdrant for vector storage and retrieval
 - Enable Change Prompt and Prompt templates for Reranking and Answering from settings
+- Use Gemeni / OpenAI / Ollama for embeddings + chat
+- Gemeni and OpenAI need API keys in keys.env file
 
 ![Main Window](RAG/RAG_GUI/Main.PNG)
 

@@ -73,6 +73,14 @@ A **desktop GUI** for experimenting with **conversation-aware RAG**, built on to
   - Ollama
   - Gemini
   - OpenAI
+ 
+![Main Window](RAG/RAG_GUI_Clean_Redis/Main.PNG)
+![Results Window](RAG/RAG_GUI_Clean_Redis/Results.PNG)
+![Logs Window](RAG/RAG_GUI_Clean_Redis/Logs.PNG)
+![Logs Window](RAG/RAG_GUI_Clean_Redis/History.PNG)
+![Settings Window](RAG/RAG_GUI_Clean_Redis/Settings1.PNG)
+![Settings Window](RAG/RAG_GUI_Clean_Redis/Settings2.PNG)
+![Qdrant Collections](RAG/RAG_GUI_Clean_Redis/QdrantCollections.PNG)
 ---
 
 ## 🧠 Why This Repo?

@@ -1,4 +1,5 @@
 import os
+from pyexpat.errors import messages
 import re
 import json
 import sys
@@ -38,6 +39,8 @@ from models_config import CHAT_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL, EMBEDDING
     # qdrant/qdrant
 # - Then run this script:
 #     PS D:\LLM\LLMs_Tests\RAG\RAG_GUI>python.exe rag_gui_qdrant.py
+# - To Install Qdrant by docker: 
+#    C:\Users\Mohammed>docker pull qdrant/qdrant
 # '''
 # http://localhost:6333/dashboard#/collections
 # Config File rag_settings.json : 
@@ -623,6 +626,43 @@ class RAGEngineQdrant:
             return None
         return None
 
+    def chat(self, prompt: str) -> str:
+        """
+        Simple chat wrapper for main model.
+        Returns assistant reply text.
+        """
+        try:
+            if self.main_provider == GEMINI_PROVIDER:
+                r = self._gemini_client.models.generate_content(
+                    model=self.main_model, #gemini_chat_model,
+                    contents=prompt,
+                )
+                out = r.text or ""
+            # elif self.provider == OPENAI_PROVIDER:
+            #     r = self._openai_client.chat.completions.create(
+            #         model=self.main_model, # gpt-4.1 , gpt-4.1-mini
+            #         messages=[
+            #             {"role": "user", "content": rerank_prompt}
+            #         ]
+            #     )
+            #     out = r.choices[0].message.content or ""
+            elif self.main_provider == OPENAI_PROVIDER:
+                r = self._openai_client.responses.create(
+                    model=self.main_model,   # gpt-4o-mini
+                    input=prompt,
+                )
+                out = r.output_text or ""            
+            else:
+                resp = ollama.chat(
+                    model=self.main_model,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                out = resp["message"]["content"] 
+        except Exception as e:
+            out = f"Error during chat: {e}"
+        
+        return out
+        
     def rerank_with_llm(self, query: str, hits: list[dict], choose_k: int) -> list[int]:
         """
         Use LLM to pick best contexts from retrieved candidates.
@@ -666,8 +706,10 @@ class RAGEngineQdrant:
             choose_k=choose_k,
             query=query,
             candidates=candidates,
-        )
+        )          
         try:
+
+            """
             if self.main_provider == GEMINI_PROVIDER:
                 r = self._gemini_client.models.generate_content(
                     model=self.main_model, #gemini_chat_model,
@@ -694,6 +736,9 @@ class RAGEngineQdrant:
                     messages=[{"role": "user", "content": rerank_prompt}],
                 )
                 out = resp["message"]["content"]            
+            """            
+            out = self.chat(rerank_prompt)
+
             # resp = ollama.chat(
             #     model=self.main_model,
             #     messages=[{"role": "user", "content": rerank_prompt}],
@@ -887,6 +932,7 @@ class RAGEngineQdrant:
         #     model=self.main_model,
         #     messages=[{"role": "user", "content": prompt}],
         # )
+        """
         if self.main_provider == GEMINI_PROVIDER:
             r = self._gemini_client.models.generate_content(
                 model=self.main_model,
@@ -904,7 +950,10 @@ class RAGEngineQdrant:
                 model=self.main_model,
                 messages=[{"role": "user", "content": prompt}],
             )
-            answer_text = resp["message"]["content"]   
+            answer_text = resp["message"]["content"] 
+        """
+        answer_text = self.chat(prompt)
+  
 
         latency = time.time() - start
 
@@ -1169,7 +1218,7 @@ class RAGAppGUI:
 
         tk.Button(btns, text="Create Sample CSVs", command=self._create_sample_csvs_threaded)\
             .grid(row=0, column=0, padx=5, sticky="ew")
-        tk.Button(btns, text="Build / Upsert Index (Qdrant)", command=self._build_index_threaded)\
+        tk.Button(btns, text="Build / Upsert Index (Qdrant)", command=self._confirm_and_build_index)\
             .grid(row=0, column=1, padx=5, sticky="ew")
         tk.Button(btns, text="Ping Qdrant", command=self._ping_qdrant_threaded)\
             .grid(row=0, column=2, padx=5, sticky="ew")
@@ -1632,6 +1681,18 @@ class RAGAppGUI:
     def _create_sample_csvs_threaded(self):
         threading.Thread(target=self._create_sample_csvs, daemon=True).start()
 
+    def _confirm_and_build_index(self):
+        proceed = messagebox.askyesno(
+            "Confirm Index Build",
+            "This will (re)build the index and may overwrite existing data.\n\n"
+            "Do you want to continue?"
+        )
+        if not proceed:
+            self._append_log("[Index] Build canceled by user.")
+            return
+
+        self._build_index_threaded()
+
     def _build_index_threaded(self):
         threading.Thread(target=self._build_index, daemon=True).start()
 
@@ -1683,6 +1744,15 @@ class RAGAppGUI:
             self._ui_put("title", APP_TITLE)
 
     def _build_index(self):
+        proceed = messagebox.askyesno(
+            "Confirm Index Build",
+            "This will (re)build the index and may overwrite existing data.\n\n"
+            "Do you want to continue?"
+        )
+        if not proceed:
+            self._append_log("[Index] Build canceled by user.")
+            return        
+        
         self._ui_put("title", APP_TITLE + " : build_index (Qdrant) ...")
         try:
             # refresh engine settings (if user changed URL/prefix but didn't apply)

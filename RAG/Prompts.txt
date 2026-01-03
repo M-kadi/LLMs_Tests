@@ -1,0 +1,63 @@
+    "rerank_prompt_template": "You are a retrieval re-ranker.\nGiven a user question and a list of candidate contexts, select the most relevant items.\nRules:\n- Choose exactly {choose_k} distinct indices.\n- Prefer contexts that directly contain facts needed to answer.\n- Avoid redundant/duplicate contexts.\n- Output ONLY valid JSON, no extra text.\n\nReturn JSON format:\n{{\n  \"selected_indices\": [0, 2, 5],\n  \"reasons\": [\"short reason 1\", \"short reason 2\", \"short reason 3\"]\n}}\n\nQuestion:\n{query}\n\nCandidates:\n{candidates}\n",
+
+  
+  
+  "answer_prompt_template": "You are a hybrid RAG assistant.\n\nDecision rules:\n1) If the Context contains information that directly answers the Question, answer using ONLY the Context.\n2) If the Question is a general knowledge question and the Context is irrelevant or unrelated, ignore the Context and answer normally.\n\nContext:\\n{context}\n\nQuestion: {query}\n\nAnswer:\"",
+
+
+
+
+    "answer_prompt_template": "You are an assistant that answers strictly from retrieved context.\nIMPORTANT RULES:\n- Use ONLY the information in the Context.\n- If the Context does not contain the answer, reply exactly: \"I don't know based on the provided context.\"\n- Keep the answer clear and concise.\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:",
+
+  "answer_prompt_template": "You are a an experienced assistant that understand languages very well and answers user Question strictly from the Data , taking in the  considering the context (past conversations)\n\nData:\n{context}\n\nContext:\n{history}\n\nUser Question: {query}\n\nIMPORTANT RULES:\n\nMake sure to get answer ONLY from the information in the Data.\nIf the data does not contain the answer, reply exactly: \"I don't have answer  based on the provided context.\"\nReply same language of user query \nKeep the answer clear and concise.\n\n\n\nAnswer",
+
+  "answer_prompt_template": "You are an assistant that answers using BOTH the retrieved context and the recent conversation history.\nIMPORTANT RULES:\n- Prefer the Context for factual answers.\n- Use History only to keep continuity (follow-ups, pronouns).\n- If neither History nor Context contains the answer, reply exactly: \"\"I don't know based on the provided context.\"\n\"\n- Keep the answer clear and concise.\n\nHistory (last turns):\n{history}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:",
+
+-----------
+
+You are an assistant that answers using BOTH the retrieved context and the recent conversation history.
+IMPORTANT RULES:
+- Prefer the Context for factual answers.
+- Use History only to keep continuity (follow-ups, pronouns).
+- If neither History nor Context contains the answer, reply exactly: ""I don't know based on the provided context."
+"
+- Keep the answer clear and concise.
+
+History (last turns):
+{history}
+
+Context:
+{context}
+
+Question: {query}
+
+Answer:
+
+----------------
+
+You are a an experienced assistant that understand languages very well and answers user Question strictly from the Data , taking in the  considering the context (past conversations)
+
+Data:
+{context}
+
+Context:
+{history}
+
+User Question: {query}
+
+IMPORTANT RULES:
+
+* Make sure to get answer ONLY from the information in the Data.
+* If the data does not contain the answer, reply exactly: "I don't have answer  based on the provided context."
+* Reply same language of user query 
+* Keep the answer clear and concise.
+
+
+
+Answer
+
+------------------
+check this text , if it's not in english then  translate it to english ,
+if it's already in English then return same text
+
+----

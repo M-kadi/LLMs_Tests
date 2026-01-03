@@ -1,0 +1,29 @@
+Case Alpha — assigned analyst: Noor Al‑Saleh.
+Noor Al‑Saleh — employee ID: A771.
+Noor Al‑Saleh — office phone: 2301.
+Noor Al‑Saleh — department: Risk Analysis.
+Case Beta — assigned analyst: Karim Fawzi.
+Karim Fawzi — employee ID: B882.
+Karim Fawzi — office phone: 2301.
+Karim Fawzi — department: Compliance.
+Case Gamma — assigned analyst: Noor Al‑Saleh.
+Noor Al‑Saleh — employee ID: A771.
+Noor Al‑Saleh — office phone: 8890.
+Noor Al‑Saleh — department: Internal Audit.
+Case Delta — assigned analyst: Salma Younis.
+Salma Younis — employee ID: D114.
+Salma Younis — office phone: 4455.
+Salma Younis — department: Risk Analysis.
+Case Epsilon — assigned analyst: Karim Fawzi.
+Karim Fawzi — employee ID: B882.
+Karim Fawzi — office phone: 7788.
+Karim Fawzi — department: Internal Audit.
+Policy rule: Risk Analysis cases require director approval.
+Policy rule: Compliance cases do NOT require director approval.
+Policy rule: Internal Audit cases require director approval.
+Shift rule: Office phone numbers may be reused across departments.
+Shift rule: An analyst may have different phone numbers per case.
+Shift rule: Employee ID uniquely identifies a person.
+If a user says “his phone” or “her phone”, it refers to the most recently mentioned ANALYST.
+If a user says “that case”, it refers to the most recently mentioned CASE.
+If multiple analysts share a phone number, CASE context must be used.

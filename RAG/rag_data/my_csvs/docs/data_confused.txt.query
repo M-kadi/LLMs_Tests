@@ -1,0 +1,64 @@
+Test 1 — same person, different projects
+
+1️⃣
+
+Who is the support lead for Project Atlas?
+
+
+✔ Expected: Lina Haddad
+
+2️⃣
+
+What is her phone extension?
+
+
+✔ Correct ONLY with history → 4451
+
+Test 2 — same name, different extension
+
+3️⃣
+
+Who is the support lead for Project Vega?
+
+
+✔ Expected: Lina Haddad
+
+4️⃣
+
+What is her phone extension?
+
+
+✔ Correct ONLY with history → 7722
+
+❌ Without history, model may return 4451 (wrong)
+
+Test 3 — extension collision (critical)
+
+5️⃣
+
+Who is the backup contact for Project Vega?
+
+
+✔ Expected: Omar Saleh
+
+6️⃣
+
+What is his phone extension?
+
+
+✔ Correct ONLY with history → 4451
+
+❌ Without history, model may return Lina’s extension
+
+Test 4 — project vs person confusion
+
+7️⃣
+
+Who is the support lead for Project Nova?
+
+
+✔ Expected: Youssef Karim
+
+8️⃣
+
+Does that project require two-factor authentication?

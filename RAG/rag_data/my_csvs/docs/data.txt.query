@@ -1,0 +1,39 @@
+✅ Queries to test (run them in order)
+Test A — should FAIL / be unreliable without history
+
+Query 1:
+For Project Falcon, who is the support lead?
+
+Query 2:
+What is his phone extension?
+✅ Correct only if history works → 3412
+
+Query 3:
+Now, for Project Orion, who is the support lead?
+
+Query 4:
+What is her phone extension?
+✅ Correct only if history works → 7780
+
+Test B — “that project” reference (history needed)
+
+Query 5:
+For Project Nimbus, what is the escalation window?
+
+Query 6:
+Does that project require manager approval for password reset?
+✅ Correct only if history works → Yes (requires approval)
+
+What you should expect (correct answers)
+
+Falcon lead: Ahmed Nasser
+
+His extension: 3412
+
+Orion lead: Sara Khalid
+
+Her extension: 7780
+
+Nimbus escalation: Monday–Friday, 08:00–16:00
+
+Nimbus password reset approval: Yes (requires manager approval)

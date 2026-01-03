@@ -1,6 +1,5 @@
 .vs
-RAG/__pycache__
-RAG/RAG_API/__pycache__
-RAG/RAG_GUI/__pycache__
 .env
 .temp
+RAG/exports
+__pycache__/

@@ -1,0 +1,24 @@
+Project Falcon — support lead: Ahmed Nasser.
+Ahmed Nasser — email: ahmed.nasser@falcon.example
+Ahmed Nasser — phone extension: 3412
+Ahmed Nasser — office: Building A, Room 210
+Project Orion — support lead: Sara Khalid.
+Sara Khalid — email: sara.khalid@orion.example
+Sara Khalid — phone extension: 7780
+Sara Khalid — office: Building C, Room 115
+Project Nimbus — support lead: Omar Farouk.
+Omar Farouk — email: omar.farouk@nimbus.example
+Omar Farouk — phone extension: 5521
+Note: “support lead” means the single person responsible for escalation.
+Note: Phone extension is always a 4-digit internal number.
+Shipping rule: Falcon uses carrier “SkyShip”.
+Shipping rule: Orion uses carrier “RedParcel”.
+Shipping rule: Nimbus uses carrier “BlueCourier”.
+Falcon escalation window: Monday–Friday, 09:00–17:00.
+Orion escalation window: Sunday–Thursday, 10:00–18:00.
+Nimbus escalation window: Monday–Friday, 08:00–16:00.
+Password reset policy: Falcon tickets require manager approval.
+Password reset policy: Orion tickets do NOT require manager approval.
+Password reset policy: Nimbus tickets require manager approval.
+If a user says “his extension” or “her extension”, it refers to the most recently mentioned support lead in the conversation.
+If a user says “that project”, it refers to the project mentioned in the most recent question.

@@ -1,0 +1,68 @@
+Test 1 — analyst reused, phone changes
+
+1️⃣
+
+Who is the assigned analyst for Case Alpha?
+
+
+✔ Expected: Noor Al-Saleh
+
+2️⃣
+
+What is her office phone?
+
+
+✔ Correct ONLY with history → 2301
+
+Test 2 — same analyst, different case
+
+3️⃣
+
+Who is the assigned analyst for Case Gamma?
+
+
+✔ Expected: Noor Al-Saleh
+
+4️⃣
+
+What is her office phone?
+
+
+✔ Correct ONLY with history → 8890
+
+❌ Without history → may return 2301 (wrong)
+
+Test 3 — phone number collision
+
+5️⃣
+
+Who is the assigned analyst for Case Beta?
+
+
+✔ Expected: Karim Fawzi
+
+6️⃣
+
+What is his office phone?
+
+
+✔ Correct ONLY with history → 2301
+
+❌ Without history → may confuse with Noor
+
+Test 4 — case vs analyst reference
+
+7️⃣
+
+Who is the assigned analyst for Case Epsilon?
+
+
+✔ Expected: Karim Fawzi
+
+8️⃣
+
+Does that case require director approval?
+
+
+✔ Correct ONLY with history → Yes
+(because Epsilon → Internal Audit)

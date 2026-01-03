@@ -1,0 +1,25 @@
+Project Atlas — support lead: Lina Haddad.
+Lina Haddad — email: lina.haddad@atlas.example
+Lina Haddad — phone extension: 4451
+Lina Haddad — office: Building B, Room 302
+Project Atlas — backup contact: Youssef Karim.
+Youssef Karim — phone extension: 9981
+Project Vega — support lead: Lina Haddad.
+Lina Haddad — email: lina.haddad@vega.example
+Lina Haddad — phone extension: 7722
+Lina Haddad — office: Building D, Room 410
+Project Vega — backup contact: Omar Saleh.
+Omar Saleh — phone extension: 4451
+Project Segma — support lead: Salwa Kadi.
+Salwa Kadi — email: salwa.kadi@segma.example
+Salwa Kadi — phone extension: 1122
+Salwa Kadi — office: Building D, Room 258
+Project Nova — support lead: Youssef Karim.
+Youssef Karim — email: youssef.karim@nova.example
+Youssef Karim — phone extension: 9981
+Security policy: Atlas requires two-factor authentication.
+Security policy: Vega does NOT require two-factor authentication.
+Security policy: Nova requires two-factor authentication.
+If a user says “his extension” or “her extension”, it refers to the most recently mentioned PERSON.
+If a user says “that project”, it refers to the most recently mentioned PROJECT.
+If multiple people share the same extension, project context MUST be used to disambiguate.

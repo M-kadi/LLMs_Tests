@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./RAG/RAG_API_Clean_Redis/RAG_API_Clean"
+    ]
+}

@@ -1,0 +1,17 @@
+{
+  "qdrant_url": "http://localhost:6333",
+  "redis_url": "redis://localhost:6379",
+  "collection_prefix": "csv_rag",
+  "topk_retrieve": 10,
+  "topk_use": 3,
+  "enable_rerank": false,
+  "text_group_lines": 1,
+  "docs_dir": "rag_data\\my_csvs\\docs",
+  "rerank_prompt_template": "You are a retrieval re-ranker.\nGiven a user question and a list of candidate contexts, select the most relevant items.\nRules:\n- Choose exactly {choose_k} distinct indices.\n- Prefer contexts that directly contain facts needed to answer.\n- Avoid redundant/duplicate contexts.\n- Output ONLY valid JSON, no extra text.\n\nReturn JSON format:\n{\n  \"selected_indices\": [0, 2, 5],\n  \"reasons\": [\"short reason 1\", \"short reason 2\", \"short reason 3\"]\n}\n\nQuestion:\n{query}\n\nCandidates:\n{candidates}\n",
+  "answer_prompt_template": "You are an assistant that answers strictly from retrieved context.\nIMPORTANT RULES:\n- Use ONLY the information in the Context.\n- If the Context does not contain the answer, reply exactly: \"I don't know based on the provided context.\"\n- Keep the answer clear and concise.\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:",
+  "embedding_model": "all-minilm:latest",
+  "main_model": "gemini-2.0-flash",
+  "main_provider": "gemini",
+  "embedding_provider": "ollama",
+  "env_path": "D:\\LLM\\LLM_Tests\\keys.env"
+}

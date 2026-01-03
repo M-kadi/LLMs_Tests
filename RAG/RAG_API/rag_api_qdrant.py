@@ -25,7 +25,7 @@ from openai import OpenAI
 # ------------------------------------------------------------
 # Your existing models_config import (keep your same file)
 # ------------------------------------------------------------
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 from models_config import DEFAULT_MODEL, EMBEDDING_MODEL, CHAT_MODELS, EMBEDDING_MODELS,\
     EMBEDDING_MODELS_OLLAMA, EMBEDDING_MODELS_GEMINI, EMBEDDING_MODELS_OPENAI, \
     CHAT_MODELS_OLLAMA, CHAT_MODELS_GEMINI, CHAT_MODELS_OPENAI
@@ -43,6 +43,8 @@ uvicorn rag_api_qdrant:app --host 0.0.0.0 --port 8000 --reload
     # docker run -p 6333:6333 -p 6334:6334 ^
     # -v %cd%\qdrant_data:/qdrant/storage ^
     # qdrant/qdrant
+# - To Install Qdrant by docker: 
+#    C:\Users\Mohammed>docker pull qdrant/qdrant    
 # - Then run this script:
 #     D:\LLM\LLM_Tests\LLMs_Tests\RAG\RAG_API>
     # uvicorn rag_api_qdrant:app --host 0.0.0.0 --port 8000 --reload

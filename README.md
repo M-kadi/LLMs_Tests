@@ -1,90 +1,89 @@
 # LLMs_Tests
- 
-[**RAG Fast API : Qdrant Local + Ollama (Embeddings + Chat):**](https://github.com/M-kadi/LLMs_Tests/tree/main/RAG/RAG_API)
-##### To Run:
-- Start Docker Desktop
-- Start Ollama application
-- Start Qdrant locally: from command line, run:
-D:\LLM\LLMs_Tests\RAG\RAG_API>
-> docker run -p 6333:6333 -p 6334:6334 ^
-> -v %cd%\qdrant_data:/qdrant/storage ^
-> qdrant/qdrant
 
-Qdrant Dashboard URL :
-http://localhost:6333/dashboard#/collections
-- Then run this script:
-D:\LLM\LLMs_Tests\RAG\RAG_API>
-> uvicorn rag_api_qdrant:app --host 0.0.0.0 --port 8000 --reload
+A collection of **clean, production-ready RAG (Retrieval-Augmented Generation) experiments** built with **Qdrant**, **Redis**, and multiple LLM providers (Ollama, Gemini, OpenAI).
+This repository focuses on **RAG with history**, **clean architecture**, and **real-world usability** (API + GUI).
 
-Open browser to (Swagger): http://localhost:8000/docs
+---
 
-##### Properties:
-- Config File rag_settings.json :
-  - contains: LLM chat models + Embedding models, enable reranking, text group lines
-- Disable Reranking : by default enabled
-- save settings to file : rag_settings.json
-- load settings from file on startup
-- Enable reranking : true : will rerank by get the TOPK_RETRIEVE from Qdrant
-  - then send to LLM to rerank to TOPK_USE as final contexts
-  - False : directly use TOPK_USE from Qdrant
-- Use Text Group Lines : for TXT files, group N lines per chunk instead of single line chunks (Paragraphs)
-- Support CSV + TXT files in the same folder for ingestion
-- Use Qdrant for vector storage and retrieval
-- Enable Change Prompt and Prompt templates for Reranking and Answering from settings
-- Use Gemeni / OpenAI / Ollama for embeddings + chat
-- Gemeni and OpenAI need API keys in keys.env file
-  
-##### Endpoints
-- GET http://localhost:8000/docs
-- GET http://localhost:8000/settings
-- POST http://localhost:8000/settings
-- POST http://localhost:8000/settings/reset
-- POST http://localhost:8000/index/build
-- POST http://localhost:8000/query
+## 🔗 RAG History API — Qdrant + Redis
+[👉 **RAG_API_Clean_Redis**](https://github.com/M-kadi/LLMs_Tests/tree/main/RAG/RAG_API_Clean_Redis)
 
---------
+A **FastAPI-based RAG API** that supports **conversation history**, **background jobs**, and **Redis-backed state**, designed for **production usage**.
 
+### Key Features
+- **RAG with History**
+  - Prompt = **Context (Qdrant) + History (Redis) + Query**
+- **Auto-Query Translation**
+  - Non-English queries (Arabic, Turkish, Chinese, etc.) are automatically translated to English
+  - Translation is performed before retrieval to match English-only Qdrant data
+- **Redis Integration**
+  - Conversation history (app_id / user_id / session_id)
+  - Logs, results, background job state
+  - Configurable TTL & max turns
+- **Background Jobs**
+  - Async index build & heavy operations
+- **Multi-Provider Support**
+  - Ollama (local)
+  - Gemini
+  - OpenAI
+- **Flexible Ingestion**
+  - CSV + TXT
+  - Paragraph-based chunking
+- **Config-Driven**
+  - `rag_settings.json` (models, rerank, chunking, prompts)
+- **Swagger API**
+  - Fully documented `/docs`
 
-[**RAG GUI (CSV/TXT) : Qdrant Local + Ollama (Embeddings + Chat):**](https://github.com/M-kadi/LLMs_Tests/tree/main/RAG/RAG_GUI)  
+### Main Endpoints
+- `/health`
+- `/settings`
+- `/index/build`
+- `/query`
+- `/history`
+- `/logs`
+- `/results`
+- `/jobs`
 
-##### To Run:
-- Start Docker Desktop
-- Start Ollama application
-- Start Qdrant locally: from command line, run:
-D:\LLM\LLMs_Tests\RAG\RAG_GUI>
-> docker run -p 6333:6333 -p 6334:6334 ^
-> -v %cd%\qdrant_data:/qdrant/storage ^
-> qdrant/qdrant
+---
 
-Qdrant Dashboard URL :
-http://localhost:6333/dashboard#/collections
+## 🖥️ RAG History GUI — Qdrant + Redis
+[👉 **RAG_GUI_Clean_Redis**](https://github.com/M-kadi/LLMs_Tests/tree/main/RAG/RAG_GUI_Clean_Redis)
 
-- Then run this script:
-> PS D:\LLM\LLMs_Tests\RAG\RAG_GUI>python.exe rag_gui_qdrant.py
-  
+A **desktop GUI** for experimenting with **conversation-aware RAG**, built on top of the same clean architecture as the API.
 
-##### Properties:
-- Config File rag_settings.json :
-  - contains: LLM chat models + Embedding models, enable reranking, text group lines
-- Disable Reranking : by default enabled
-- save settings to file : rag_settings.json
-- load settings from file on startup
-- Enable reranking checkbox : true : will rerank by get the TOPK_RETRIEVE from Qdrant
-  - then send to LLM to rerank to TOPK_USE as final contexts
-  - False : directly use TOPK_USE from Qdrant
-- Use Text Group Lines : for TXT files, group N lines per chunk instead of single line chunks (Paragraphs)
-- Support CSV + TXT files in the same folder for ingestion
-- Use Qdrant for vector storage and retrieval
-- Enable Change Prompt and Prompt templates for Reranking and Answering from settings
-- Use Gemeni / OpenAI / Ollama for embeddings + chat
-- Gemeni and OpenAI need API keys in keys.env file
+### Key Features
+- **Conversation History**
+  - Redis-backed
+  - Last N turns injected into prompt
+- **Auto-Query Translation**
+  - Non-English queries (Arabic, Turkish, Chinese, etc.) are automatically translated to English
+  - Translation is performed before retrieval to match English-only Qdrant data
+- **Rich GUI**
+  - Query / Results / Logs / History / Settings tabs
+- **History Management**
+  - View & export History, Logs, Results
+  - Auto-export on close (with confirmation)
+- **Redis Controls**
+  - Ping Redis
+  - Enable/disable history
+  - Control history turns
+- **Safe Indexing**
+  - Confirmation before rebuilding index
+- **Multi-Provider Support**
+  - Ollama
+  - Gemini
+  - OpenAI
+---
 
-![Main Window](RAG/RAG_GUI/Main.PNG)
+## 🧠 Why This Repo?
+- True **RAG with memory**
+- Clean architecture (API / Core / Storage / GUI)
+- Redis used correctly (history, jobs, logs, results)
+- Production-minded design
+- Easy to extend (multimodal RAG coming)
+- Will use vLLM (coming)
 
-![Results Window](RAG/RAG_GUI/Results.PNG)
+---
 
-![Logs Window](RAG/RAG_GUI/Logs.PNG)
-
-![Settings Window](RAG/RAG_GUI/SettingsWindow.PNG)
-
-![Qdrant Collections](RAG/RAG_GUI/QdrantCollections.PNG)
+## 📜 License
+MIT License © 2026 Mohammed & Manaf

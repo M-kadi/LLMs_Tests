@@ -81,6 +81,7 @@ A **desktop GUI** for experimenting with **conversation-aware RAG**, built on to
 ![Settings Window](RAG/RAG_GUI_Clean_Redis/Settings1.PNG)
 ![Settings Window](RAG/RAG_GUI_Clean_Redis/Settings2.PNG)
 ![Qdrant Collections](RAG/RAG_GUI_Clean_Redis/QdrantCollections.PNG)
+![Redis Data](RAG/RAG_GUI_Clean_Redis/Redis.PNG)
 ---
 
 ## 🧠 Why This Repo?

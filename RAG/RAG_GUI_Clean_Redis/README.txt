@@ -1,34 +1,72 @@
-# RAG GUI (Clean)
+# RAG History GUI (Qdrant + Redis)
 
-Entry point:
-- `python main.py`
-or
-- `python -m main`
+A **desktop GUI application** for experimenting with **conversation-aware RAG**, built on top of **Qdrant**, **Redis**, and multiple LLM providers.
 
-This folder keeps the original behavior but splits code into:
-- `rag_gui_app.py` (Tkinter GUI)
-- `rag_engine_qdrant.py` (RAG engine: Qdrant + embeddings + chat)
-- `rag_settings.py` (defaults, settings persistence, .env loading)
-- `.env` / `.env.example` (environment variables)
+---
 
-Run with:
-    python main.py
+## ✨ Key Features
 
+- **RAG with Conversation History**
+  - Redis-backed history
+  - Last *N* turns injected into the prompt
 
-Redis support:
-- Start Redis: docker run -d -p 6379:6379 redis:7
-- GUI will store logs/results/history in Redis.
-- History tab shows last N turns (default 5). Export button writes JSON (history+logs+results).
+- **Auto-Query Translation**
+  - Non-English queries are automatically translated to English before retrieval
+  - Enables multilingual interaction with English-only vector stores
 
-Requirements:
-- pip install redis
+- **Interactive GUI**
+  - Tabs: Query, Results, Logs, History, Settings
 
+- **History Management**
+  - View conversation history
+  - Export History / Logs / Results
+  - Auto-export on app close (with confirmation)
 
-UI:
-- History tab: Refresh + Export History + Export Logs + Export Results + Export ALL
-- On close: prompts to export ALL (single JSON) before exit.
+- **Redis Integration**
+  - History, logs, results stored in Redis
+  - Ping Redis from UI
+  - Control history size from settings
 
+- **Safe Indexing**
+  - Confirmation dialog before rebuilding index
 
-Exports:
-- Exports are written automatically under ./exports/ (project folder) as 3 JSON files: history_*.json, logs_*.json, results_*.json
-- On close: prompts to export automatically to ./exports/ (no dialog).
+- **Multi-Provider Support**
+  - Ollama
+  - Gemini
+  - OpenAI
+
+- **Flexible Ingestion**
+  - CSV and TXT files
+  - Paragraph-based chunking
+
+---
+
+## 🖥️ GUI Highlights
+
+- Embedding & main model selection
+- App ID / Session ID / User ID support
+- History-aware answering
+- Qdrant collection visibility
+
+---
+
+## 🧱 Tech Stack
+
+- Python (Tkinter)
+- Qdrant
+- Redis
+- Ollama / Gemini / OpenAI
+
+---
+
+## 🎯 Purpose
+
+- Rapid RAG experimentation
+- Debugging RAG pipelines
+- Visualizing history-aware RAG behavior
+
+---
+
+## 📜 License
+
+MIT License © 2026 Mohammed & Manaf

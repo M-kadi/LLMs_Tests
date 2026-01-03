@@ -1,59 +1,78 @@
-# rag_api_simple
+# RAG History API (Qdrant + Redis)
 
-Clean + simple FastAPI REST API for your RAG system (Qdrant + Providers).
+A **production-ready RAG (Retrieval-Augmented Generation) API** built with **FastAPI**, **Qdrant**, and **Redis**, supporting **conversation history**, **background jobs**, and **multi-LLM providers**.
 
-## Run
-```bash
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+---
 
-Swagger:
-- http://localhost:8000/docs
+## ✨ Key Features
 
-## Settings
-- Settings are stored in `rag_settings.json` (created automatically if missing).
-- You can choose different providers for chat and embeddings:
-  - main_provider: ollama | openai | gemini
-  - embedding_provider: ollama | openai | gemini
+- **RAG with History**
+  - Prompt = Context (Qdrant) + History (Redis) + Query
+  - Uses last *N* conversation turns for follow-up questions
 
-Keys:
-- OpenAI: OPENAI_API_KEY
-- Gemini: GEMINI_API_KEY (or GOOGLE_API_KEY)
+- **Auto-Query Translation**
+  - Non-English queries (Arabic, Turkish, Chinese, etc.) are automatically translated to English
+  - Ensures compatibility with English-only vector data in Qdrant
+- **Redis Integration**
+  - Conversation history (per app_id / user_id / session_id)
+  - Logs, results, background job state
+  - Configurable TTL and max history turns
 
-Optional:
-- env_path in settings can point to a .env file (dotenv format).
+- **Background Jobs**
+  - Async index building and heavy tasks
+  - Non-blocking API requests (RQ / Redis workers)
 
+- **Multi-Provider LLM Support**
+  - Ollama (local)
+  - Gemini
+  - OpenAI
 
-## Background Jobs (non-blocking)
-- POST /index/build_async  -> returns a job
-- POST /query_async        -> returns a job
-- GET  /jobs              -> list jobs
-- GET  /jobs/{job_id}      -> job status + result when done
+- **Flexible Data Ingestion**
+  - CSV and TXT files
+  - Line or paragraph-based chunking
 
-Notes:
-- When a query job finishes, its payload is also stored in /results.
+- **Config-Driven**
+  - Central `rag_settings.json`
+  - Models, reranking, prompts, chunking, providers
 
+- **Swagger API**
+  - Interactive API docs at `/docs`
 
-## Run
+---
 
-### Option A (recommended)
+## 🔌 Main Endpoints
 
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+- `GET /health`
+- `GET /settings`
+- `POST /settings`
+- `POST /settings/reset`
+- `POST /index/build`
+- `POST /query`
+- `GET /history`
+- `GET /logs`
+- `GET /results`
+- `GET /jobs`
 
-### Option B
+---
 
-```bash
-python main.py
-```
+## 🧱 Tech Stack
 
+- FastAPI
+- Qdrant (Vector Database)
+- Redis (History, Jobs, Logs, Results)
+- Ollama / Gemini / OpenAI
 
------
-## Run:
-  - python RAG_API_Clean_Redis\main.py
+---
 
-## Debug 
-  - (by : RAG_API_Clean_Redis\.vscode\launch.json):
-  - RAG_API_Clean_Redis/app/main.py
+## 🚀 Use Cases
+
+- Conversational RAG APIs
+- Enterprise knowledge bases
+- Multi-user chat systems
+- Backend for RAG GUIs
+
+---
+
+## 📜 License
+
+MIT License © 2026 Mohammed & Manaf

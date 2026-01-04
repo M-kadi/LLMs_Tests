@@ -10,7 +10,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR.parent))
 from models_config import DEFAULT_MODEL, EMBEDDING_MODEL
 
-APP_TITLE = "RAG API (Simple): Qdrant + Providers"
+APP_TITLE = "RAG History API (Qdrant + Redis)"
 
 OLLAMA = "ollama"
 OPENAI = "openai"

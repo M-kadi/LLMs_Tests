@@ -24,8 +24,8 @@ A **FastAPI-based RAG API** that supports **conversation history**, **background
   - Async index build & heavy operations
 - **Multi-Provider Support**
   - Ollama (local)
-  - Gemini
-  - OpenAI
+  - Gemini (cloud)
+  - OpenAI (cloud)
 - **Flexible Ingestion**
   - CSV + TXT
   - Paragraph-based chunking
@@ -33,7 +33,7 @@ A **FastAPI-based RAG API** that supports **conversation history**, **background
   - `rag_settings.json` (models, rerank, chunking, prompts)
 - **Swagger API**
   - Fully documented `/docs`
-
+  
 ### Main Endpoints
 - `/health`
 - `/settings`
@@ -70,18 +70,134 @@ A **desktop GUI** for experimenting with **conversation-aware RAG**, built on to
 - **Safe Indexing**
   - Confirmation before rebuilding index
 - **Multi-Provider Support**
-  - Ollama
-  - Gemini
-  - OpenAI
- 
-![Main Window](RAG/RAG_GUI_Clean_Redis/Main.PNG)
-![Results Window](RAG/RAG_GUI_Clean_Redis/Results.PNG)
-![Logs Window](RAG/RAG_GUI_Clean_Redis/Logs.PNG)
-![Logs Window](RAG/RAG_GUI_Clean_Redis/History.PNG)
-![Settings Window](RAG/RAG_GUI_Clean_Redis/Settings1.PNG)
-![Settings Window](RAG/RAG_GUI_Clean_Redis/Settings2.PNG)
-![Qdrant Collections](RAG/RAG_GUI_Clean_Redis/QdrantCollections.PNG)
-![Redis Data](RAG/RAG_GUI_Clean_Redis/Redis.PNG)
+  - Ollama (locally)
+  - Gemini (cloud)
+  - OpenAI (cloud)
+- **Config-Driven**
+  - `rag_settings.json` (models, rerank, chunking, prompts)
+  
+---
+
+## ▶️ How to Run (Command Line)
+
+### Start : Docker Desktop app and Ollama app
+---
+### Start Qdrant (Vector Database)
+
+```bat
+docker run -p 6333:6333 -p 6334:6334 ^
+  -v %cd%\qdrant_data:/qdrant/storage ^
+  qdrant/qdrant
+```
+
+- Qdrant Dashboard: http://localhost:6333/dashboard
+
+---
+
+### Start Redis
+
+```bat
+docker run -p 6379:6379 --name redis -d redis:7
+```
+---
+### Start redisinsight
+
+```bat
+docker run -d ^
+  --name redisinsight ^
+  -p 8001:5540 ^
+  redis/redisinsight
+```
+- redisinsight: http://localhost:5540/
+- Add Redis Database: Host: `host.docker.internal` 
+
+---
+### Start Qdrant & Redis & redisinsight by docker `docker-compose.yml`
+
+Start All
+```bat
+docker compose up -d
+```
+
+Stop All
+```bat
+docker compose down
+```
+
+---
+
+### Run the RAG API (Development – Recommended)
+##### From the Path: `RAG_API_Clean_Redis\app\main.py`
+
+```bat
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+##### Or by Click F5 in VS Code `RAG_API_Clean_Redis\.vscode\launch.json`
+---
+
+### Run the RAG API (Python)
+##### From the Path: `RAG_API_Clean_Redis\main.py`
+
+```bat
+python main.py
+```
+- Swagger UI: http://localhost:8000/docs
+
+---
+
+## 🌐 URLs
+
+- Swagger UI: http://localhost:8000/docs
+- Qdrant Dashboard: http://localhost:6333/dashboard
+- redisinsight: http://localhost:5540/
+
+---
+## FlowChart: RAG Qdrant History
+![Main Window](RAG/Images/FlowChart.PNG)
+---
+## GUI Windows
+#### Main Window
+
+![Main Window](RAG/Images/Main.PNG)
+
+  ---
+#### Results Window
+
+![Results Window](RAG/Images/Results.PNG)
+
+---
+#### Logs Window
+
+![Logs Window](RAG/Images/Logs.PNG)
+
+---
+#### History Window
+
+![History Window](RAG/Images/History.PNG)
+
+---
+#### Settings Window
+
+![Settings Window](RAG/Images/Settings1.PNG)
+
+---
+#### Settings Window
+
+![Settings Window](RAG/Images/Settings2.PNG)
+
+---
+#### Qdrant Collections
+
+![Qdrant Collections](RAG/Images/QdrantCollections.PNG)
+
+---
+#### Redis Data
+
+![Redis Data](RAG/Images/Redis.PNG)
+---
+#### Swagger
+
+![Swagger](RAG/Images/Swagger.PNG)
 ---
 
 ## 🧠 Why This Repo?

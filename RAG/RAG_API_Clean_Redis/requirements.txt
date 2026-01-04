@@ -1,12 +1,23 @@
 fastapi>=0.110
 uvicorn[standard]>=0.27
 pydantic>=2.6
-numpy>=1.24
-pandas>=2.0
-qdrant-client>=1.7
 python-dotenv>=1.0
-ollama>=0.2
-openai>=1.40.0
+
+# Vector DB
+qdrant-client>=1.8
+
+# Redis + Background Jobs
+redis>=5.0
+rq>=1.15
+
+# LLM Providers
+ollama>=0.3
+openai>=1.12
 google-genai>=0.3.0
 
-redis>=5.0.0
+# Data
+pandas>=2.0
+numpy>=1.26
+
+# Utils
+tenacity>=8.2

@@ -1,1 +1,17 @@
-redis>=5.0.0
+tk
+pandas>=2.0
+numpy>=1.26
+
+# Vector DB
+qdrant-client>=1.8
+
+# Redis
+redis>=5.0
+
+# LLM Providers
+ollama>=0.3
+openai>=1.12
+google-genai>=0.3.0
+
+# Utils
+python-dotenv>=1.0

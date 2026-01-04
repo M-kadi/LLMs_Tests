@@ -73,6 +73,81 @@ A **production-ready RAG (Retrieval-Augmented Generation) API** built with **Fas
 
 ---
 
+## ▶️ How to Run (Command Line)
+
+### Start : Docker Desktop app and Ollama app
+---
+### Start Qdrant (Vector Database)
+
+```bat
+docker run -p 6333:6333 -p 6334:6334 ^
+  -v %cd%\qdrant_data:/qdrant/storage ^
+  qdrant/qdrant
+```
+
+- Qdrant Dashboard: http://localhost:6333/dashboard
+
+---
+
+### Start Redis
+
+```bat
+docker run -p 6379:6379 --name redis -d redis:7
+```
+---
+### Start redisinsight
+
+```bat
+docker run -d ^
+  --name redisinsight ^
+  -p 8001:5540 ^
+  redis/redisinsight
+```
+- redisinsight: http://localhost:5540/
+- Add Redis Database: Host: `host.docker.internal` 
+
+---
+### Start Qdrant & Redis & redisinsight by docker `docker-compose.yml`
+
+Start All
+```bat
+docker compose up -d
+```
+
+Stop All
+```bat
+docker compose down
+```
+
+---
+
+### Run the RAG API (Development – Recommended)
+##### From the Path: `RAG_API_Clean_Redis\app\main.py`
+
+```bat
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+##### Or by Click F5 in VS Code `RAG_API_Clean_Redis\.vscode\launch.json`
+---
+
+### Run the RAG API (Python)
+##### From the Path: `RAG_API_Clean_Redis\main.py`
+
+```bat
+python main.py
+```
+- Swagger UI: http://localhost:8000/docs
+
+---
+
+## 🌐 URLs
+
+- Swagger UI: http://localhost:8000/docs
+- Qdrant Dashboard: http://localhost:6333/dashboard
+- redisinsight: http://localhost:5540/
+
+---
+
 ## 📜 License
 
 MIT License © 2026 Mohammed & Manaf
